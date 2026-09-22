@@ -1,22 +1,45 @@
-.PHONY: all
+MODE ?= debug
 
-all: out/c out/vm
+CC = gcc
+CFLAGS = -Wall -Wextra -std=c11
+CPPFLAGS = -I"./header"
+LD_FLAGS = -lm
+OUT_DIR = out/$(MODE)
 
-out/c: out/lang.o out/c.o
-	gcc -o out/c out/lang.o out/c.o
+HEADERS = header/hoduli.h header/lang.h header/mem.h header/program.h
 
-out/vm: out/lang.o out/vm.o
-	gcc -o out/vm out/lang.o out/vm.o
+ifeq ($(MODE),release)
+	CFLAGS += -O3 -DNDEBUG
+else ifeq ($(MODE),debug)
+	CFLAGS += -DDEBUG -g
+else
+	$(error Unknown MODE="$(MODE)". Only debug/release supported)
+endif
 
-out/lang.o: src/lang.c header/lang.h
-	gcc -c -o out/lang.o src/lang.c
+.PHONY: all c vm test clean
 
-out/vm.o: src/vm.c header/lang.h src/lang.c
-	gcc -c -o out/vm.o src/vm.c
+all: clean vm c
 
-out/c.o: src/c.c src/lang.c header/lang.c
-	gcc -c -o out/c.o src/c.c
+c: $(OUT_DIR)/c
 
-.PHONY: test
+vm: $(OUT_DIR)/vm
+
+clean:
+	rm -rf out
+	mkdir -p out/debug
+	mkdir -p out/release
+
+$(OUT_DIR)/c: $(OUT_DIR)/c.o
+	$(CC) $^ $(LD_FLAGS) -o $@
+
+$(OUT_DIR)/vm: $(OUT_DIR)/vm.o
+	$(CC) $^ $(LD_FLAGS) -o $@
+
+$(OUT_DIR)/vm.o: src/vm.c $(HEADERS)
+	$(CC) $(CPPFLAGS) $(CFLAGS) -c $< -o $@
+
+$(OUT_DIR)/c.o: src/c.c $(HEADERS)
+	$(CC) $(CPPFLAGS) $(CFLAGS) -c $< -o $@
+
 test:
 	echo "No tests yet"

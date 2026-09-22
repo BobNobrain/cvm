@@ -3,132 +3,120 @@
 
 #include <stdlib.h>
 #include <stddef.h>
+#include <stdio.h>
+#include <stdbool.h>
 
-#define I_HALT  0
-#define I_PUSH  1
-#define I_POP   2
-#define I_BINOP 3
-#define I_UNOP  4
-#define I_JMP   5
-#define I_JMPZ  6
-#define I_MEMR  7
-#define I_MEMW  8
+typedef enum ValueType {
+    V_NULL,
+    V_BOOL,
+    V_NUMI,
+    V_NUMF,
+    V_STR,
+    V_CPTR,
+    V_ARR,
+    V_HASH,
 
-typedef char instr_t;
-typedef int memptr_t;
-typedef int instrptr_t;
-typedef char value_t;
+    V_INVALID
+} ValueType;
 
-typedef struct Program {
-    instr_t *code;
-    unsigned int length;
-} program_t;
+typedef char BoolValue;
+typedef int NumIValue;
+typedef float NumFValue;
 
-typedef struct Memory {
-    value_t *start;
-    value_t *end;
-} memory_t;
-
-#define V_NULL 0
-#define V_BOOL 1
-#define V_NUMI 2
-#define V_NUMF 3
-#define V_STR  4
-#define V_CPTR 5
-#define V_ARR  6
-#define V_HASH 7
-
-typedef char value_t;
-
-typedef char boolval_t;
-typedef int numival_t;
-typedef float numfval_t;
-
-typedef struct StrVal {
+typedef struct StrValue {
     size_t length;
-} strval_t;
+} StrValue;
 
-typedef struct ArrVal {
+typedef struct ArrayValue {
     size_t length;
-    value_t value_type;
-} arrval_t;
+    ValueType value_type;
+} ArrayValue;
 
-typedef struct Stack {
-    value_t **start;
-    size_t size;
-    size_t capacity;
-} stack_t;
+typedef struct Value {
+    ValueType type;
+    union {
+        BoolValue boolv;
+        NumIValue numi;
+        NumFValue numf;
+        StrValue str;
+        // ??? cptr;
+        ArrayValue arr;
+        // ??? hash;
+    } data;
+} Value;
 
-void value_debug_print(value_t v) {
-    switch (v) {
-    case V_NULL:
-        printf("null"); break;
-    case V_BOOL:
-        printf("bool"); break;
-    }
+Value value_bool(bool v) {
+    Value result = { .type = V_BOOL };
+    result.data.boolv = v;
+    return result;
+}
+Value value_numi(int v) {
+    Value result = { .type = V_NUMI };
+    result.data.numi = v;
+    return result;
+}
+Value value_numf(float v) {
+    Value result = { .type = V_NUMF };
+    result.data.numf = v;
+    return result;
 }
 
-size_t value_get_size(memory_t mem) {
-    switch (*(mem.start)) {
+int value_to_string(Value v, char *str, size_t str_size) {
+    switch (v.type) {
     case V_NULL:
-        return 0;
+        return snprintf(str, str_size, "<%s>", "null");
+
     case V_BOOL:
-        return sizeof(boolval_t);
+        if (v.data.boolv == 0) {
+            return snprintf(str, str_size, "<b:%s>", "false");
+        }
+        return snprintf(str, str_size, "<b:%s>", "true");
+
     case V_NUMI:
-        return sizeof(numival_t);
-    }
+        return snprintf(str, str_size, "<i:%d>", v.data.numi);
 
-    return 0;
-}
+    case V_NUMF:
+        return snprintf(str, str_size, "<f:%f>", v.data.numf);
 
-memory_t memory_get_tail(memory_t mem) {
-    mem.start += get_value_size(mem);
-    if (mem.start > mem.end) {
-        mem.start = mem.end;
-    }
-    return mem;
-}
+    case V_STR:
+        return snprintf(str, str_size, "<s:%s>", "??");
 
-int stack_init(stack_t *s, size_t cap) {
-    s->start = malloc(sizeof(value_t*) * cap);
+    case V_CPTR:
+        return snprintf(str, str_size, "<*%s>", "??");
 
-    if (s->start == 0) { return -1 ; }
+    case V_ARR:
+        return snprintf(str, str_size, "<[]%s>", "??");
 
-    s->capacity = cap;
-    s->size = 0;
+    case V_HASH:
+        return snprintf(str, str_size, "<{}%s>", "??");
 
-    return 0;
-}
-
-int stack_push(stack_t *s, value_t *v) {
-    if (s->size >= s->capacity) {
+    default:
         return -1;
     }
-
-    s->start[s->size] = v;
-    s->size += 1;
-
-    return 0;
 }
 
-int stack_pop(stack_t *s, size_t n) {
-    if (s->size < n) { return -1; }
+size_t value_get_data_size(ValueType type) {
+    switch (type) {
+    case V_NULL:
+        return 0;
+    case V_BOOL:
+        return sizeof(BoolValue);
+    case V_NUMI:
+        return sizeof(NumIValue);
+    case V_NUMF:
+        return sizeof(NumFValue);
+    case V_STR:
+        return sizeof(StrValue);
+    case V_CPTR:
+        return 0;
+    case V_ARR:
+        return sizeof(ArrayValue);
+    case V_HASH:
+        return 0;
 
-    s->size -= n;
-
-    return 0;
-}
-
-value_t* stack_get(stack_t s, int at) {
-    if (at < 0) {
-        at += s.size;
-    }
-
-    if (s.size <= at) {
+    default:
         return 0;
     }
-
-    return s.start[at];
 }
 
 #endif
