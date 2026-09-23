@@ -1,61 +1,8 @@
 #include <stdio.h>
 #include <stddef.h>
 #include "hoduli.h"
-#include "lang.h"
-#include "mem.h"
 #include "program.h"
-
-typedef struct Machine {
-    Memory vmem;
-    Memory smem;
-    Stack vars;
-    Stack stack;
-} VMachine;
-
-typedef struct VMConfig {
-    size_t stack_size;
-    size_t stack_cap;
-
-    size_t vars_size;
-    size_t max_vars;
-} VMConfig;
-
-int vm_init(VMachine *vm, VMConfig cfg) {
-    ERR_DECL
-
-    Memory mem;
-    size_t total = cfg.stack_size + cfg.vars_size;
-    mem.length = total;
-    ERR_PASS( memory_init(&mem) )
-
-    Memory vmem, smem;
-    vmem.length = cfg.vars_size;
-    vmem.content = mem.content;
-    smem.length = cfg.stack_size;
-    smem.content = &mem.content[cfg.vars_size];
-
-    vm->vmem = vmem;
-    vm->smem = smem;
-
-    ERR_PASS( stack_init(&vm->stack, cfg.stack_cap) )
-    ERR_PASS( stack_init(&vm->vars, cfg.max_vars) )
-
-    return 0;
-}
-
-int write_and_push_numi(Stack *stack, Memory mem, NumIValue value) {
-    ERR_DECL
-
-    MemPtr addr;
-    ERR_PASS( stack_get_next(*stack, &addr) )
-
-    size_t size = memory_write_numi(mem, addr, value);
-    if (size == 0) { return -1; }
-
-    ERR_PASS( stack_push(stack, addr, size) )
-
-    return 0;
-}
+#include "vm.h"
 
 int main() {
     ERR_DECL
@@ -69,26 +16,18 @@ int main() {
 
     VMachine vm;
     err = vm_init(&vm, cfg);
-    if (err != 0) {
+    if (err != E_NONE) {
         printf("vm init failed\n");
         return -1;
     }
 
     printf("vm initialized\n");
 
-    for (int i = 2; i < 50; i += 10) {
-        err = write_and_push_numi(&vm.stack, vm.smem, i);
-        if (err != 0) {
-            printf("vm init failed\n");
-            return -1;
-        }
-    }
-
-    memory_print(vm.smem, 32);
+    memory_print(vm.smem, 16);
 
     ProgramWriter pw;
     err = program_init_writer(&pw);
-    if (err != 0) {
+    if (err != E_NONE) {
         printf("ProgramWriter init failed\n");
         return -1;
     }
@@ -101,6 +40,13 @@ int main() {
     program_finish(&pw, &p);
 
     program_print(p);
+
+    err = vm_execute(&vm, p);
+    if (err != E_NONE) {
+        printf("Failed to execute (%d)\n", err);
+    }
+
+    memory_print(vm.smem, 16);
 
     return 0;
 }

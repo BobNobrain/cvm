@@ -4,7 +4,8 @@
 #include <stdlib.h>
 #include <stddef.h>
 #include <string.h>
-#include "lang.h"
+#include "hoduli.h"
+#include "value.h"
 
 typedef size_t MemPtr;
 typedef struct Memory {
@@ -12,12 +13,12 @@ typedef struct Memory {
     size_t length;
 } Memory;
 
-int memory_init(Memory *mem) {
+error memory_init(Memory *mem) {
     mem->content = malloc(mem->length * sizeof(uint8_t));
     if (mem->content == 0) {
-        return -1;
+        return E_MEMORY;
     }
-    return 0;
+    return E_NONE;
 }
 
 #define DECLARE_MEMORY_READ_FN(SUFFIX, VALUE_TYPE) \
@@ -32,6 +33,20 @@ DECLARE_MEMORY_READ_FN(numi, NumIValue)
 DECLARE_MEMORY_READ_FN(numf, NumFValue)
 
 #undef DECLARE_MEMORY_READ_FN
+
+size_t memory_read(Memory mem, MemPtr at, Value *into) {
+    switch (into->type) {
+    case V_BOOL:
+        return memory_read_bool(mem, at, &into->data.boolv);
+    case V_NUMI:
+        return memory_read_numi(mem, at, &into->data.numi);
+    case V_NUMF:
+        return memory_read_numf(mem, at, &into->data.numf);
+
+    default:
+        return 0;
+    }
+}
 
 #define DECLARE_MEMORY_WRITE_FN(SUFFIX, VALUE_TYPE) \
 size_t memory_write_##SUFFIX (Memory mem, MemPtr at, VALUE_TYPE value) { \
@@ -76,68 +91,70 @@ void memory_print(Memory mem, size_t max) {
     printf("\n");
 }
 
+/*
 typedef struct Stack {
     MemPtr *ptrs;
     size_t size;
     size_t capacity;
 } Stack;
 
-int stack_init(Stack *s, size_t cap) {
+error stack_init(Stack *s, size_t cap) {
     if (cap == 0) {
         return -1;
     }
 
     s->ptrs = malloc(sizeof(MemPtr) * cap);
 
-    if (s->ptrs == 0) { return -1 ; }
+    if (s->ptrs == 0) { return E_MEMORY ; }
 
     s->capacity = cap;
     s->size = 0;
     s->ptrs[0] = 0;
 
-    return 0;
+    return E_NONE;
 }
 
-int stack_push(Stack *s, MemPtr ptr, size_t size) {
+error stack_push(Stack *s, MemPtr ptr, size_t size) {
     if (s->size >= s->capacity) {
-        return -1;
+        return E_OUT_OF_RANGE;
     }
 
     s->ptrs[s->size] = ptr;
     s->size += 1;
     s->ptrs[s->size] = ptr + size;
 
-    return 0;
+    return E_NONE;
 }
 
-int stack_pop(Stack *s, size_t n) {
-    if (s->size < n) { return -1; }
+error stack_pop(Stack *s, size_t n) {
+    if (s->size < n) { return E_OUT_OF_RANGE; }
 
     s->size -= n;
 
-    return 0;
+    return E_NONE;
 }
 
-int stack_get(Stack s, int at, MemPtr *into) {
+error stack_get(Stack s, int at, MemPtr *into) {
     if (at < 0) {
         at += s.size;
     }
 
     if ((int)(s.size) <= at) {
-        return -1;
+        return E_OUT_OF_RANGE;
     }
 
     *into = s.ptrs[at];
-    return 0;
+    return E_NONE;
 }
 
-int stack_get_next(Stack s, MemPtr *into) {
+error stack_get_next(Stack s, MemPtr *into) {
     if (s.size >= s.capacity) {
-        return -1;
+        return E_OUT_OF_RANGE;
     }
 
     *into = s.ptrs[s.size];
-    return 0;
+    return E_NONE;
 }
+*/
 
 #endif

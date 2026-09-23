@@ -6,7 +6,7 @@ CPPFLAGS = -I"./header"
 LD_FLAGS = -lm
 OUT_DIR = out/$(MODE)
 
-HEADERS = header/hoduli.h header/lang.h header/mem.h header/program.h
+HEADERS := $(wildcard header/*.h)
 
 ifeq ($(MODE),release)
 	CFLAGS += -O3 -DNDEBUG

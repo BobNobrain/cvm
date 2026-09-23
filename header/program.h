@@ -5,7 +5,10 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include "lang.h"
+#include "str.h"
+#include "value.h"
+#include "ops.h"
+#include "mem.h"
 
 typedef enum InstructionType {
     I_HALT,
@@ -23,47 +26,8 @@ typedef enum InstructionType {
 
 typedef unsigned int InstructionPtr;
 
-typedef enum BinopType {
-    // common ops
-    BINOP_EQ,
-    BINOP_NEQ,
-
-    // int ops
-    BINOP_IADD,
-    BINOP_IMUL,
-    BINOP_ISUB,
-    BINOP_IDIV,
-    BINOP_IREM,
-    BINOP_IGT,
-    BINOP_ILT,
-    BINOP_IGTE,
-    BINOP_ILTE,
-
-    // float ops
-    BINOP_FADD,
-    BINOP_FMUL,
-    BINOP_FSUB,
-    BINOP_FDIV,
-    BINOP_FREM,
-
-    // bool ops
-    BINOP_BAND,
-    BINOP_BOR,
-
-    BINOP_INVALID
-} BinopType;
-
-typedef enum UnopType {
-    UNOP_BNOT,
-    UNOP_INEG,
-    UNOP_FNEG,
-    UNOP_ITOF,
-
-    UNOP_INVALID
-} UnopType;
-
 typedef Value IPushData;
-typedef uint8_t IPopData;
+typedef ValueType IPopData;
 typedef BinopType IBinopData;
 typedef UnopType IUnopData;
 typedef InstructionPtr IJmpData;
@@ -152,43 +116,49 @@ size_t instr_get_size(InstructionType i) {
     }
 }
 
-int instr_to_string(Instruction instr, char *str, size_t str_size) {
-    char value_str[20];
-    int written;
+error instr_to_string(Instruction instr, StringWriter *sw) {
+    ERR_DECL
+    const size_t buffer_size = 20;
+    char buffer[20];
 
     switch (instr.type) {
     case I_HALT:
-        return snprintf(str, str_size, "%s", "HALT");
+        return strw_appendc(sw, "HALT");
+
     case I_PUSH:
-        written = value_to_string(instr.data.push, value_str, 20);
-        if (written < 0) {
-            return snprintf(str, str_size, "PUSH %s", "??");
-        }
+        ERR_PASS( strw_appendc(sw, "PUSH ") )
+        return value_to_string(instr.data.push, sw);
 
-        if (written >= 20) {
-            value_str[17] = '.';
-            value_str[18] = '.';
-            value_str[19] = '.';
-        }
-
-        return snprintf(str, str_size, "PUSH %s", value_str);
     case I_POP:
-        return snprintf(str, str_size, "POP %d", instr.data.pop);
+        snprintf(buffer, buffer_size, "POP %u", instr.data.pop);
+        return strw_appendc(sw, buffer);
+
     case I_BINOP:
-        return snprintf(str, str_size, "BINOP %d", instr.data.binop); // TODO: instr_binop_to_string
+        ERR_PASS( strw_appendc(sw, "BINOP ") )
+        return binop_to_string(instr.data.binop, sw);
+
     case I_UNOP:
-        return snprintf(str, str_size, "UNOP %d", instr.data.unop); // TODO: instr_unop_to_string
+        ERR_PASS( strw_appendc(sw, "UNOP ") )
+        return unop_to_string(instr.data.unop, sw);
+
     case I_JMP:
-        return snprintf(str, str_size, "JMP %d", instr.data.jmp);
+        snprintf(buffer, buffer_size, "JMP %d", instr.data.jmp);
+        return strw_appendc(sw, buffer);
+
     case I_JMPZ:
-        return snprintf(str, str_size, "JMPZ %d", instr.data.jmpz);
+        snprintf(buffer, buffer_size, "JMPZ %d", instr.data.jmpz);
+        return strw_appendc(sw, buffer);
+
     case I_MEMR:
-        return snprintf(str, str_size, "MEMR @%zu", instr.data.memr);
+        snprintf(buffer, buffer_size, "MEMR @%zu", instr.data.memr);
+        return strw_appendc(sw, buffer);
+
     case I_MEMW:
-        return snprintf(str, str_size, "MEMW @%zu", instr.data.memr);
+        snprintf(buffer, buffer_size, "MEMW @%zu", instr.data.memr);
+        return strw_appendc(sw, buffer);
 
     default:
-        return 0;
+        return E_NONE;
     }
 }
 
@@ -267,9 +237,15 @@ void program_finish(ProgramWriter *from, Program *into) {
 }
 
 void program_print(Program p) {
+    ERR_DECL
+
     InstructionPtr ptr = 0;
     Instruction instr;
+    const size_t buffer_size = 128;
     char buffer[128];
+
+    StringWriter sw;
+    strw_init(&sw, 64);
 
     while (ptr < p.length) {
         size_t ilen = program_read_instr(p, ptr, &instr);
@@ -278,11 +254,30 @@ void program_print(Program p) {
             return;
         }
 
-        instr_to_string(instr, buffer, 128);
-        printf("%3d %s\n", ptr, buffer);
+        snprintf(buffer, buffer_size, "%3d ", ptr);
+        err = strw_appendc(&sw, buffer);
+        if (err != E_NONE) {
+            printf("failed to render: %d\n", err);
+            return;
+        }
+
+        err = instr_to_string(instr, &sw);
+        if (err != E_NONE) {
+            printf("failed to render: %d\n", err);
+            return;
+        }
+
+        err = strw_appendc(&sw, "\n");
+        if (err != E_NONE) {
+            printf("failed to render: %d\n", err);
+            return;
+        }
 
         ptr += ilen;
     }
+
+    String result = strw_render(&sw);
+    str_print(result);
 }
 
 #endif
