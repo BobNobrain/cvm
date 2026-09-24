@@ -1,8 +1,9 @@
-#ifndef STRB_H
-#define STRB_H
+#ifndef STR_H
+#define STR_H
 
 #include <stddef.h>
 #include <stdlib.h>
+#include <stdbool.h>
 #include <string.h>
 #include "hoduli.h"
 
@@ -19,11 +20,11 @@ String str_wrap(const char *c_str) {
     return result;
 }
 
-String str_substring(const String source, size_t start, size_t end) {
-    if (start < source.size) {
+String str_substring(String source, size_t start, size_t end) {
+    if (start > source.size) {
         return EMPTY_STRING;
     }
-    if (end < source.size) {
+    if (end > source.size) {
         end = source.size;
     }
 
@@ -34,8 +35,65 @@ String str_substring(const String source, size_t start, size_t end) {
     return result;
 }
 
-void str_print(const String str) {
+void str_assign(String *into, String value) {
+    memcpy(into, &value, sizeof(String));
+}
+
+size_t str_compc(String str, const char* c_str, size_t n) {
+    size_t len = n;
+    if (str.size < len) {
+        len = str.size;
+    }
+
+    for (size_t i = 0; i < len; i++) {
+        if (str.content[i] != c_str[i]) {
+            return i;
+        }
+    }
+
+    return len;
+}
+
+bool str_eqc(String str, const char* c_str) {
+    for (size_t i = 0; i < str.size; i++) {
+        if (c_str[i] == '\0') {
+            return false;
+        }
+        if (str.content[i] != c_str[i]) {
+            return false;
+        }
+    }
+    return true;
+}
+
+size_t str_parse_uint_dec(String str, unsigned int *into) {
+    *into = 0;
+
+    unsigned int place = 1;
+
+    for (size_t i = 0; i < str.size; i++) {
+        char next = str.content[str.size - i - 1];
+        if (next < '0' || '9' < next) {
+            return i;
+        }
+
+        *into += place * (next - '0');
+        place *= 10;
+    }
+
+    return str.size;
+}
+
+void str_print(String str) {
     printf("%.*s", (int)str.size, str.content);
+}
+
+void str_debug_print(String str) {
+    if (str.content == 0) {
+        printf("''[empty]");
+        return;
+    }
+    printf("'%.*s'[%zu]", (int)str.size, str.content, str.size);
 }
 
 typedef struct StringWriter {

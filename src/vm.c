@@ -32,9 +32,11 @@ int main() {
         return -1;
     }
 
-    program_write_instr(&pw, instr_push(value_numi(3)));
-    program_write_instr(&pw, instr_push(value_numi(2)));
+    program_write_instr(&pw, instr_push(value_numi(30)));
+    program_write_instr(&pw, instr_push(value_numi(20)));
     program_write_instr(&pw, instr_binop(BINOP_IADD));
+    program_write_instr(&pw, instr_push(value_numi(10)));
+    program_write_instr(&pw, instr_binop(BINOP_IDIV));
 
     Program p;
     program_finish(&pw, &p);

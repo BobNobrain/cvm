@@ -1,5 +1,5 @@
-#ifndef LANG_H
-#define LANG_H
+#ifndef VALUE_H
+#define VALUE_H
 
 #include <stdlib.h>
 #include <stddef.h>

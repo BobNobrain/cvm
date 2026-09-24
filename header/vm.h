@@ -130,13 +130,6 @@ error vm_exec_binop(VMachine *vm, IBinopData op) {
         return E_BAD_DATA;
     }
 
-    printf("LEFT: ");
-    value_print(left);
-    printf(" / RIGHT: ");
-    value_print(right);
-    printf("\nOP RESULT: ");
-    value_print(result);
-    printf("\n");
     return vm_stack_push(vm, result);
 }
 #undef BINOP_HANDLE

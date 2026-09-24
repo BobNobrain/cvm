@@ -16,11 +16,13 @@ else
 	$(error Unknown MODE="$(MODE)". Only debug/release supported)
 endif
 
-.PHONY: all c vm test clean
+.PHONY: all c exprc vm test clean
 
 all: clean vm c
 
 c: $(OUT_DIR)/c
+
+exprc: $(OUT_DIR)/exprc
 
 vm: $(OUT_DIR)/vm
 
@@ -32,6 +34,9 @@ clean:
 $(OUT_DIR)/c: $(OUT_DIR)/c.o
 	$(CC) $^ $(LD_FLAGS) -o $@
 
+$(OUT_DIR)/exprc: $(OUT_DIR)/exprc.o
+	$(CC) $^ $(LD_FLAGS) -o $@
+
 $(OUT_DIR)/vm: $(OUT_DIR)/vm.o
 	$(CC) $^ $(LD_FLAGS) -o $@
 
@@ -39,6 +44,9 @@ $(OUT_DIR)/vm.o: src/vm.c $(HEADERS)
 	$(CC) $(CPPFLAGS) $(CFLAGS) -c $< -o $@
 
 $(OUT_DIR)/c.o: src/c.c $(HEADERS)
+	$(CC) $(CPPFLAGS) $(CFLAGS) -c $< -o $@
+
+$(OUT_DIR)/exprc.o: src/exprc.c $(HEADERS)
 	$(CC) $(CPPFLAGS) $(CFLAGS) -c $< -o $@
 
 test:
