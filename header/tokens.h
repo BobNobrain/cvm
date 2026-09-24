@@ -7,6 +7,7 @@
 #include <stdbool.h>
 #include <string.h>
 #include "str.h"
+#include "document.h"
 
 #define TOKEN_LIST(X) \
     X(TOKEN_IDENT, , ) \
@@ -28,7 +29,7 @@ typedef enum TokenType {
 #define TOKEN_LIST_X(CONST_NAME, DATA_TYPE, FIELD_NAME) DATA_TYPE FIELD_NAME;
 typedef struct Token {
     TokenType type;
-    String source;
+    DocumentRange range;
     union {
         TOKEN_LIST(TOKEN_LIST_X)
     } data;
@@ -36,9 +37,9 @@ typedef struct Token {
 #undef TOKEN_LIST_X
 
 typedef struct Tokenizer {
+    Token *tokens;
     size_t size;
     size_t capacity;
-    Token *tokens;
 } Tokenizer;
 
 error tokenizer_init(Tokenizer *t) {
@@ -68,15 +69,19 @@ error tokenizer_push_token(Tokenizer *t, Token token) {
     return E_NONE;
 }
 
-size_t tokenizer_skip_ws(String source) {
+size_t tokenizer_skip_ws(String source, DocumentPos *cursor) {
     for (size_t i = 0; i < source.size; i++) {
         char next = source.content[i];
         switch (next) {
-        case ' ':
         case '\n':
+            document_pos_line_break(cursor);
+            break;
+
+        case ' ':
         case '\t':
         case '\r':
-            continue;
+            document_pos_track(cursor, 1);
+            break;
 
         default:
             return i;
@@ -114,6 +119,33 @@ size_t tokenizer_read_number(String source, Token *into) {
         into->type = TOKEN_INT_LITERAL;
     }
 
+    return i;
+}
+
+size_t tokenizer_read_ident(String source, Token *into) {
+    size_t i = 0;
+
+    for (; i < source.size; i++) {
+        char next = source.content[i];
+
+        if ('A' <= next && next <= 'Z') {
+            continue;
+        }
+        if ('a' <= next && next <= 'z') {
+            continue;
+        }
+        if (next == '_') {
+            continue;
+        }
+
+        break;
+    }
+
+    if (i == 0) {
+        return 0;
+    }
+
+    into->type = TOKEN_IDENT;
     return i;
 }
 
@@ -174,26 +206,15 @@ size_t tokenizer_read_paren(String source, Token *into) {
     return 1;
 }
 
-typedef struct TokenParseError {
-    String message;
-    String source;
-    size_t start;
-} TokenParseError;
+bool tokenizer_parse_token(Token *token, String source, DocumentError *error) {
+    String token_content = document_substring(source, token->range);
 
-void tokenizer_set_error_message(TokenParseError *e, String msg) {
-    str_assign(&e->message, msg);
-}
-void tokenizer_set_error_source(TokenParseError *e, String src) {
-    memcpy(&e->source, &src, sizeof(src));
-}
-
-bool tokenizer_parse_token(Token *token, String source, TokenParseError *error) {
     switch (token->type) {
     case TOKEN_IDENT:
-        if (str_eqc(token->source, "true")) {
+        if (str_eqc(token_content, "true")) {
             token->type = TOKEN_BOOL_LITERAL;
             token->data.booll = true;
-        } else if (str_eqc(token->source, "false")) {
+        } else if (str_eqc(token_content, "false")) {
             token->type = TOKEN_BOOL_LITERAL;
             token->data.booll = false;
         }
@@ -201,12 +222,10 @@ bool tokenizer_parse_token(Token *token, String source, TokenParseError *error) 
 
     case TOKEN_INT_LITERAL: {
         unsigned int parsed;
-        size_t n_chars = str_parse_uint_dec(token->source, &parsed);
+        size_t n_chars = str_parse_uint_dec(token_content, &parsed);
 
-        if (n_chars != token->source.size) {
-            str_assign(&error->message, str_wrap("failed to parse an integer"));
-            str_assign(&error->source, token->source);
-            error->start = token->source.content - source.content;
+        if (n_chars != token_content.size) {
+            document_set_error(error, "failed to parse an integer", token->range);
             return false;
         }
 
@@ -216,15 +235,12 @@ bool tokenizer_parse_token(Token *token, String source, TokenParseError *error) 
 
     case TOKEN_FLOAT_LITERAL: {
         unsigned int whole, frac;
-        size_t n_chars_whole = str_parse_uint_dec(token->source, &whole);
-        String frac_str = str_substring(token->source, n_chars_whole + 1, token->source.size);
+        size_t n_chars_whole = str_parse_uint_dec(token_content, &whole);
+        String frac_str = str_substring(token_content, n_chars_whole + 1, token_content.size);
         size_t n_chars_frac = str_parse_uint_dec(frac_str, &frac);
 
-        if (n_chars_whole + n_chars_frac + 1 != token->source.size) {
-            printf("%zu %zu\n", n_chars_whole, n_chars_frac);
-            str_assign(&error->message, str_wrap("failed to parse a float"));
-            str_assign(&error->source, token->source);
-            error->start = token->source.content - source.content;
+        if (n_chars_whole + n_chars_frac + 1 != token_content.size) {
+            document_set_error(error, "failed to parse a float", token->range);
             return false;
         }
 
@@ -246,11 +262,10 @@ bool tokenizer_parse_token(Token *token, String source, TokenParseError *error) 
 #define TRY_TOKEN_READER(READER) \
     consumed = READER(rest, &current); \
     if (consumed > 0) { \
-        str_assign(&current.source, str_substring(rest, 0, consumed)); \
+        current.range = document_range(cursor, consumed); \
         ERR_PASS( tokenizer_push_token(t, current) ) \
         str_assign(&rest, str_substring(rest, consumed, rest.size)); \
-        str_debug_print(rest); \
-        printf("\n  - %zu consumed by " #READER "\n", consumed); \
+        document_pos_track(&cursor, consumed); \
         continue; \
     }
 
@@ -260,36 +275,31 @@ error tokenizer_run(Tokenizer *t, String source) {
     String rest = source;
     size_t consumed;
     Token current;
+    DocumentPos cursor = document_pos_zero();
 
-    consumed = tokenizer_skip_ws(rest);
+    consumed = tokenizer_skip_ws(rest, &cursor);
     str_assign(&rest, str_substring(rest, consumed, rest.size));
-    str_debug_print(rest);
-    printf("\n  - %zu consumed by initial WS, %zu remains\n", consumed, rest.size);
 
     while (rest.size > 0) {
         TRY_TOKEN_READER(tokenizer_read_number)
         TRY_TOKEN_READER(tokenizer_read_op)
         TRY_TOKEN_READER(tokenizer_read_paren)
+        TRY_TOKEN_READER(tokenizer_read_ident)
 
-        consumed = tokenizer_skip_ws(rest);
+        consumed = tokenizer_skip_ws(rest, &cursor);
         if (consumed > 0) {
             str_assign(&rest, str_substring(rest, consumed, rest.size));
-            str_debug_print(rest);
-            printf("\n  - %zu consumed by WS\n", consumed);
             continue;
         }
 
         return E_BAD_DATA;
     }
 
-    TokenParseError tperr;
+    DocumentError docerr = { .source = source };
     for (size_t i = 0; i < t->size; i++) {
-        if (!tokenizer_parse_token(&t->tokens[i], source, &tperr)) {
+        if (!tokenizer_parse_token(&t->tokens[i], source, &docerr)) {
             printf("Parsing failed: ");
-            str_print(tperr.message);
-            printf("\n  near '");
-            str_print(tperr.source);
-            printf("', pos %zu\n", tperr.start);
+            document_print_error(docerr);
             return E_BAD_DATA;
         }
     }

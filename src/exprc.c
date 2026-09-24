@@ -7,7 +7,7 @@
 
 int main() {
     ERR_DECL
-    const char TEST_EXPR[] = "(3.2 + 5 * 2 )  ";
+    const char TEST_EXPR[] = "(3.2 + 5 * 2 ) asd true ";
 
     Tokenizer t;
     err = tokenizer_init(&t);
