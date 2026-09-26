@@ -30,31 +30,36 @@ Value lang_value_make_numf(float v) {
 VALUE_TYPE_LIST(VALUE_TYPE_X)
 #undef VALUE_TYPE_X
 
-error lang_value_to_string(Value v, StringBuilder *sw) {
+void lang_value_to_string(Value v, StringBuilder *sw) {
     const size_t buffer_size = 20;
     char buffer[20];
 
     switch (v.type) {
     case V_NULL:
-        return strb_appendc(sw, "<null>");
+        strb_appendc(sw, "<null>");
+        break;
 
     case V_BOOL:
         if (v.data.boolv == 0) {
-            return strb_appendc(sw, "<false>");
+            strb_appendc(sw, "<false>");
+            break;
         }
-        return strb_appendc(sw, "<true>");
+        strb_appendc(sw, "<true>");
+        break;
 
     case V_NUMI:
         snprintf(buffer, buffer_size, "<i:%d>", v.data.numi);
-        return strb_appendc(sw, buffer);
+        strb_appendc(sw, buffer);
+        break;
 
     case V_NUMF:
         snprintf(buffer, buffer_size, "<f:%f>", v.data.numf);
-        return strb_appendc(sw, buffer);
+        strb_appendc(sw, buffer);
+        break;
 
     default:
         strb_appendc(sw, "<?>");
-        return E_BAD_DATA;
+        break;
     }
 }
 

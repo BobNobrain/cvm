@@ -84,19 +84,15 @@ StringBuilder *strb_new(size_t cap) {
         cap = 64;
     }
 
-    StringBuilder *sb = malloc(sizeof(StringBuilder));
-
-    sb->content = malloc(cap * sizeof(char));
-    if (sb->content == 0) {
-        return 0;
-    }
+    StringBuilder *sb = malloc_or_die(sizeof(StringBuilder));
+    sb->content = malloc_or_die(cap * sizeof(char));
 
     sb->size = 0;
     sb->capacity = cap;
     return sb;
 }
 
-error strb_append(StringBuilder *sb, const String str) {
+void strb_append(StringBuilder *sb, const String str) {
     if (sb->size + str.size > sb->capacity) {
         size_t cap_incr = sb->capacity;
 
@@ -110,11 +106,7 @@ error strb_append(StringBuilder *sb, const String str) {
             cap_incr = str.size;
         }
 
-        sb->content = realloc(sb->content, sb->capacity + cap_incr);
-        if (sb->content == 0) {
-            return E_MEMORY;
-        }
-
+        sb->content = realloc_or_die(sb->content, sb->capacity + cap_incr);
         sb->capacity += cap_incr;
     }
 
@@ -123,26 +115,21 @@ error strb_append(StringBuilder *sb, const String str) {
     }
 
     sb->size += str.size;
-    return E_NONE;
 }
 
-error strb_appendc(StringBuilder *sb, const char *c_str) {
-    return strb_append(sb, str_wrap(c_str));
+void strb_appendc(StringBuilder *sb, const char *c_str) {
+    strb_append(sb, str_wrap(c_str));
 }
 
 String strb_render(StringBuilder *sb) {
     String result = {
-        .content = realloc(sb->content, sb->size),
+        .content = realloc_or_die(sb->content, sb->size),
         .size = sb->size
     };
 
     sb->content = 0;
     sb->size = 0;
     sb->capacity = 0;
-
-    if (result.content == 0) {
-        return EMPTY_STRING;
-    }
 
     return result;
 }

@@ -6,9 +6,6 @@
 
 #include <stddef.h>
 #include <stdint.h>
-#include <stdlib.h>
-#include <stdio.h>
-#include <string.h>
 #include "util.h"
 #include "lang.h"
 
@@ -24,7 +21,7 @@ typedef struct Memory {
     size_t length;
 } Memory;
 
-extern error rt_memory_init(Memory *mem);
+extern void rt_memory_init(Memory *mem);
 extern size_t rt_memory_read(Memory mem, MemPtr at, Value *into);
 extern size_t rt_memory_write(Memory mem, MemPtr at, Value value);
 extern void rt_memory_print(Memory mem, size_t max);
@@ -66,7 +63,7 @@ typedef struct VMConfig {
     size_t max_vars;
 } VMConfig;
 
-extern error rt_vm_init(VMachine *vm, VMConfig cfg);
+extern void rt_vm_init(VMachine *vm, VMConfig cfg);
 extern error rt_vm_stack_push(VMachine *vm, Value value);
 extern error rt_vm_stack_pop(VMachine *vm, Value *into);
 extern error rt_vm_exec_instr(VMachine *vm, Instruction instr);

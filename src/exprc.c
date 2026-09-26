@@ -8,11 +8,7 @@ int main() {
     const char TEST_EXPR[] = "(3.2 + 5 * 2 ) asd true ";
 
     Tokenizer t;
-    err = ct_tokenizer_init(&t);
-    if (err != E_NONE) {
-        printf("tokenizer init failed\n");
-        return -1;
-    }
+    ct_tokenizer_init(&t);
 
     err = ct_tokenizer_run(&t, str_wrap(TEST_EXPR));
     if (err != E_NONE) {

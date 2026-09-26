@@ -73,7 +73,7 @@ typedef struct Tokenizer {
     size_t capacity;
 } Tokenizer;
 
-extern error ct_tokenizer_init(Tokenizer *t);
+extern void ct_tokenizer_init(Tokenizer *t);
 extern error ct_tokenizer_run(Tokenizer *t, String source);
 
 
@@ -110,7 +110,7 @@ typedef struct {
     size_t current_block_size;
 } ASTree;
 
-extern error ct_ast_tree_init(ASTree *tree);
+extern void ct_ast_tree_init(ASTree *tree);
 extern ASTNode *ct_ast_node_new(ASTree *tree, ASTNodeType type, ASTNode *parent);
 
 
@@ -124,7 +124,7 @@ typedef struct {
     ASTNode *current;
 } Parser;
 
-extern error ct_ast_parser_init(Parser *p, Tokenizer *input);
+extern void ct_ast_parser_init(Parser *p, Tokenizer *input);
 
 /** Hiding all internal macros */
 #ifndef CT_INTERNAL

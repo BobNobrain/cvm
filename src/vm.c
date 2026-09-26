@@ -15,22 +15,13 @@ int main() {
     };
 
     VMachine vm;
-    err = rt_vm_init(&vm, cfg);
-    if (err != E_NONE) {
-        printf("vm init failed\n");
-        return -1;
-    }
-
+    rt_vm_init(&vm, cfg);
     printf("vm initialized\n");
 
     rt_memory_print(vm.smem, 16);
 
     ProgramWriter pw;
-    err = lang_program_init_writer(&pw);
-    if (err != E_NONE) {
-        printf("ProgramWriter init failed\n");
-        return -1;
-    }
+    lang_program_init_writer(&pw);
 
     lang_program_write_instr(&pw, lang_instr_make_push(lang_value_make_numi(30)));
     lang_program_write_instr(&pw, lang_instr_make_push(lang_value_make_numi(20)));

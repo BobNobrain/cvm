@@ -70,48 +70,56 @@ size_t lang_instr_get_size(InstructionType i) {
     }
 }
 
-error lang_instr_to_string(Instruction instr, StringBuilder *sw) {
-    ERR_DECL
+void lang_instr_to_string(Instruction instr, StringBuilder *sw) {
     const size_t buffer_size = 20;
     char buffer[20];
 
     switch (instr.type) {
     case I_HALT:
-        return strb_appendc(sw, "HALT");
+        strb_appendc(sw, "HALT");
+        break;
 
     case I_PUSH:
-        ERR_PASS( strb_appendc(sw, "PUSH ") )
-        return lang_value_to_string(instr.data.push, sw);
+        strb_appendc(sw, "PUSH ");
+        lang_value_to_string(instr.data.push, sw);
+        break;
 
     case I_POP:
         snprintf(buffer, buffer_size, "POP %u", instr.data.pop);
-        return strb_appendc(sw, buffer);
+        strb_appendc(sw, buffer);
+        break;
 
     case I_BINOP:
-        ERR_PASS( strb_appendc(sw, "BINOP ") )
-        return lang_binop_to_string(instr.data.binop, sw);
+        strb_appendc(sw, "BINOP ");
+        lang_binop_to_string(instr.data.binop, sw);
+        break;
 
     case I_UNOP:
-        ERR_PASS( strb_appendc(sw, "UNOP ") )
-        return lang_unop_to_string(instr.data.unop, sw);
+        strb_appendc(sw, "UNOP ");
+        lang_unop_to_string(instr.data.unop, sw);
+        break;
 
     case I_JMP:
         snprintf(buffer, buffer_size, "JMP %d", instr.data.jmp);
-        return strb_appendc(sw, buffer);
+        strb_appendc(sw, buffer);
+        break;
 
     case I_JMPZ:
         snprintf(buffer, buffer_size, "JMPZ %d", instr.data.jmpz);
-        return strb_appendc(sw, buffer);
+        strb_appendc(sw, buffer);
+        break;
 
     case I_MEMR:
         snprintf(buffer, buffer_size, "MEMR @%zu", instr.data.memr);
-        return strb_appendc(sw, buffer);
+        strb_appendc(sw, buffer);
+        break;
 
     case I_MEMW:
         snprintf(buffer, buffer_size, "MEMW @%zu", instr.data.memr);
-        return strb_appendc(sw, buffer);
+        strb_appendc(sw, buffer);
+        break;
 
     default:
-        return E_NONE;
+        break;
     }
 }

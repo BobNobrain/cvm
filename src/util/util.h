@@ -56,8 +56,8 @@ size_t str_parse_uint_dec(String str, unsigned int *into); // TODO: shouldn't be
 typedef void StringBuilder;
 
 extern StringBuilder *strb_new(size_t cap);
-extern error strb_append(StringBuilder *sb, const String str);
-extern error strb_appendc(StringBuilder *sb, const char *c_str);
+extern void strb_append(StringBuilder *sb, const String str);
+extern void strb_appendc(StringBuilder *sb, const char *c_str);
 extern String strb_render(StringBuilder *sb);
 #endif
 

@@ -6,31 +6,20 @@
 #include "util.h"
 #include "ct_int.h"
 
-error ct_tokenizer_init(Tokenizer *t) {
+void ct_tokenizer_init(Tokenizer *t) {
     t->size = 0;
     t->capacity = 128;
-    t->tokens = malloc(t->capacity * sizeof(Token));
-    if (t->tokens == 0) {
-        t->capacity = 0;
-        return E_MEMORY;
-    }
-
-    return E_NONE;
+    t->tokens = malloc_or_die(t->capacity * sizeof(Token));
 }
 
-error ct_tokenizer_push_token(Tokenizer *t, Token token) {
+void ct_tokenizer_push_token(Tokenizer *t, Token token) {
     if (t->size >= t->capacity) {
         t->capacity += 128;
-        t->tokens = realloc(t->tokens, t->capacity);
-        if (t->tokens == 0) {
-            t->capacity = 0;
-            return E_MEMORY;
-        }
+        t->tokens = realloc_or_die(t->tokens, t->capacity);
     }
 
     memcpy(&t->tokens[t->size], &token, sizeof(token));
     t->size += 1;
-    return E_NONE;
 }
 
 size_t ct_tokenizer_skip_ws(String source, DocumentPos *cursor) {
@@ -227,15 +216,13 @@ bool ct_tokenizer_parse_token(Token *token, String source, DocumentError *error)
     consumed = READER(rest, &current); \
     if (consumed > 0) { \
         current.range = ct_document_range(cursor, consumed); \
-        ERR_PASS( ct_tokenizer_push_token(t, current) ) \
+        ct_tokenizer_push_token(t, current); \
         str_assign(&rest, str_substring(rest, consumed, rest.size)); \
         ct_document_pos_track(&cursor, consumed); \
         continue; \
     }
 
 error ct_tokenizer_run(Tokenizer *t, String source) {
-    ERR_DECL
-
     String rest = source;
     size_t consumed;
     Token current;

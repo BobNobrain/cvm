@@ -7,13 +7,11 @@
 #include "lang.h"
 #include "rt_int.h"
 
-error rt_vm_init(VMachine *vm, VMConfig cfg) {
-    ERR_DECL
-
+void rt_vm_init(VMachine *vm, VMConfig cfg) {
     Memory mem;
     size_t total = cfg.stack_size + cfg.vars_size;
     mem.length = total;
-    ERR_PASS( rt_memory_init(&mem) )
+    rt_memory_init(&mem);
 
     Memory vmem, smem;
     vmem.length = cfg.vars_size;
@@ -27,8 +25,6 @@ error rt_vm_init(VMachine *vm, VMConfig cfg) {
 
     vm->current = 0;
     vm->state = VMState_READY;
-
-    return E_NONE;
 }
 
 error rt_vm_stack_push(VMachine *vm, Value value) {

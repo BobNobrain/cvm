@@ -5,12 +5,8 @@
 #include "lang.h"
 #include "rt_int.h"
 
-error rt_memory_init(Memory *mem) {
-    mem->content = malloc(mem->length * sizeof(uint8_t));
-    if (mem->content == 0) {
-        return E_MEMORY;
-    }
-    return E_NONE;
+void rt_memory_init(Memory *mem) {
+    mem->content = malloc_or_die(mem->length * sizeof(uint8_t));
 }
 
 #define IMPLEMENT_MEMORY_READ_FN(SUFFIX, VALUE_TYPE) \

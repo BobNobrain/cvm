@@ -53,7 +53,7 @@ extern Value lang_value_make_numf(float v);
 VALUE_TYPE_LIST(VALUE_TYPE_X)
 #undef VALUE_TYPE_X
 
-extern error lang_value_to_string(Value v, StringBuilder *sw);
+extern void lang_value_to_string(Value v, StringBuilder *sw);
 extern size_t lang_value_get_data_size(ValueType type);
 extern void lang_value_print(Value v);
 
@@ -105,8 +105,8 @@ typedef enum UnopType {
     UNOP_INVALID
 } UnopType;
 
-extern error lang_binop_to_string(BinopType t, StringBuilder *sw);
-extern error lang_unop_to_string(UnopType t, StringBuilder *sw);
+extern void lang_binop_to_string(BinopType t, StringBuilder *sw);
+extern void lang_unop_to_string(UnopType t, StringBuilder *sw);
 
 
 /** Bytecode instructions */
@@ -158,7 +158,7 @@ extern Instruction lang_instr_make_jmpz(InstructionPtr to);
 extern Instruction lang_instr_make_memr(MemPtr to);
 extern Instruction lang_instr_make_memw(MemPtr to);
 extern size_t lang_instr_get_size(InstructionType i);
-extern error lang_instr_to_string(Instruction instr, StringBuilder *sb);
+extern void lang_instr_to_string(Instruction instr, StringBuilder *sb);
 
 
 /** Bytecode program and related things */
@@ -176,7 +176,7 @@ typedef struct {
     size_t capacity;
 } ProgramWriter;
 
-extern int lang_program_init_writer(ProgramWriter *w);
+extern void lang_program_init_writer(ProgramWriter *w);
 extern size_t lang_program_write_instr(ProgramWriter *w, Instruction next);
 extern void lang_program_finish(ProgramWriter *from, Program *into);
 
