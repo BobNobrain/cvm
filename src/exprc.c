@@ -1,8 +1,6 @@
 #include <stdio.h>
 #include <stddef.h>
 #include "hoduli.h"
-#include "program.h"
-#include "vm.h"
 #include "tokens.h"
 
 int main() {
