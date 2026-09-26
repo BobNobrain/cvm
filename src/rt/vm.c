@@ -1,47 +1,19 @@
-#ifndef VM_H
-#define VM_H
-
 #include <stddef.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdbool.h>
-#include "str.h"
-#include "value.h"
-#include "ops.h"
-#include "program.h"
+#include "util.h"
+#include "lang.h"
+#include "rt_int.h"
 
-typedef enum VMState {
-    VMState_READY,
-    VMState_RUNNING,
-    VMState_HALTED,
-    VMState_CRASHED,
-} VMState;
-
-typedef struct Machine {
-    Memory vmem;
-    Memory smem;
-    MemPtr stack_ptr;
-
-    InstructionPtr current;
-    VMState state;
-} VMachine;
-
-typedef struct VMConfig {
-    size_t stack_size;
-    size_t stack_cap;
-
-    size_t vars_size;
-    size_t max_vars;
-} VMConfig;
-
-error vm_init(VMachine *vm, VMConfig cfg) {
+error rt_vm_init(VMachine *vm, VMConfig cfg) {
     ERR_DECL
 
     Memory mem;
     size_t total = cfg.stack_size + cfg.vars_size;
     mem.length = total;
-    ERR_PASS( memory_init(&mem) )
+    ERR_PASS( rt_memory_init(&mem) )
 
     Memory vmem, smem;
     vmem.length = cfg.vars_size;
@@ -59,8 +31,8 @@ error vm_init(VMachine *vm, VMConfig cfg) {
     return E_NONE;
 }
 
-error vm_stack_push(VMachine *vm, Value value) {
-    size_t size = memory_write(vm->smem, vm->stack_ptr, value);
+error rt_vm_stack_push(VMachine *vm, Value value) {
+    size_t size = rt_memory_write(vm->smem, vm->stack_ptr, value);
     if (size == 0) {
         return E_OUT_OF_RANGE;
     }
@@ -69,14 +41,14 @@ error vm_stack_push(VMachine *vm, Value value) {
     return E_NONE;
 }
 
-error vm_stack_pop(VMachine *vm, Value *into) {
-    size_t data_size = value_get_data_size(into->type);
+error rt_vm_stack_pop(VMachine *vm, Value *into) {
+    size_t data_size = lang_value_get_data_size(into->type);
     if (vm->stack_ptr < data_size) {
         return E_OUT_OF_RANGE;
     }
 
     vm->stack_ptr -= data_size;
-    size_t bytes_read = memory_read(vm->smem, vm->stack_ptr, into);
+    size_t bytes_read = rt_memory_read(vm->smem, vm->stack_ptr, into);
     if (bytes_read != data_size) {
         return E_UNKNOWN;
     }
@@ -87,11 +59,11 @@ error vm_stack_pop(VMachine *vm, Value *into) {
 #define BINOP_HANDLE(LTYPE, RTYPE, RSETFUN, RESULT) \
     left.type = LTYPE; \
     right.type = RTYPE; \
-    ERR_PASS( vm_stack_pop(vm, &right) ) \
-    ERR_PASS( vm_stack_pop(vm, &left) ) \
-    value_set_##RSETFUN(&result, (RESULT));
+    ERR_PASS( rt_vm_stack_pop(vm, &right) ) \
+    ERR_PASS( rt_vm_stack_pop(vm, &left) ) \
+    lang_value_set_##RSETFUN(&result, (RESULT));
 
-error vm_exec_binop(VMachine *vm, IBinopData op) {
+error rt_vm_exec_binop(VMachine *vm, IBinopData op) {
     ERR_DECL
 
     Value left, right;
@@ -130,16 +102,16 @@ error vm_exec_binop(VMachine *vm, IBinopData op) {
         return E_BAD_DATA;
     }
 
-    return vm_stack_push(vm, result);
+    return rt_vm_stack_push(vm, result);
 }
 #undef BINOP_HANDLE
 
 #define UNOP_HANDLE(ARG_TYPE, RSETFUN, RESULT) \
     arg.type = ARG_TYPE; \
-    ERR_PASS( vm_stack_pop(vm, &result) ) \
-    value_set_##RSETFUN(&result, RESULT);
+    ERR_PASS( rt_vm_stack_pop(vm, &result) ) \
+    lang_value_set_##RSETFUN(&result, RESULT);
 
-error vm_exec_unop(VMachine *vm, IUnopData op) {
+error rt_vm_exec_unop(VMachine *vm, IUnopData op) {
     ERR_DECL
 
     Value arg;
@@ -170,29 +142,29 @@ error vm_exec_unop(VMachine *vm, IUnopData op) {
         return E_BAD_DATA;
     }
 
-    return vm_stack_push(vm, result);
+    return rt_vm_stack_push(vm, result);
 }
 #undef UNOP_HANDLE
 
-error vm_exec_instr(VMachine *vm, Instruction instr) {
+error rt_vm_exec_instr(VMachine *vm, Instruction instr) {
     switch (instr.type) {
     case I_HALT:
         vm->state = VMState_HALTED;
         return E_NONE;
 
     case I_PUSH:
-        return vm_stack_push(vm, instr.data.push);
+        return rt_vm_stack_push(vm, instr.data.push);
 
     case I_POP: {
         Value discarded = { .type = instr.data.pop };
-        return vm_stack_pop(vm, &discarded);
+        return rt_vm_stack_pop(vm, &discarded);
     }
 
     case I_BINOP:
-        return vm_exec_binop(vm, instr.data.binop);
+        return rt_vm_exec_binop(vm, instr.data.binop);
 
     case I_UNOP:
-        return vm_exec_unop(vm, instr.data.unop);
+        return rt_vm_exec_unop(vm, instr.data.unop);
 
     case I_JMP:
         return E_BAD_DATA;
@@ -211,7 +183,7 @@ error vm_exec_instr(VMachine *vm, Instruction instr) {
     }
 }
 
-error vm_execute(VMachine *vm, Program p) {
+error rt_vm_execute(VMachine *vm, Program p) {
     ERR_DECL
 
     Instruction instr;
@@ -220,14 +192,14 @@ error vm_execute(VMachine *vm, Program p) {
     vm->state = VMState_RUNNING;
 
     while (vm->current < p.length && vm->state != VMState_HALTED) {
-        size_t ilen = program_read_instr(p, vm->current, &instr);
+        size_t ilen = lang_program_read_instr(p, vm->current, &instr);
         if (ilen == 0) {
             return E_UNKNOWN;
         }
 
         vm->current += ilen;
 
-        err = vm_exec_instr(vm, instr);
+        err = rt_vm_exec_instr(vm, instr);
         if (err != E_NONE) {
             vm->state = VMState_CRASHED;
         }
@@ -236,5 +208,3 @@ error vm_execute(VMachine *vm, Program p) {
     vm->state = VMState_HALTED;
     return E_NONE;
 }
-
-#endif

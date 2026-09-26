@@ -1,16 +1,5 @@
-#ifndef STR_H
-#define STR_H
-
-#include <stddef.h>
-#include <stdlib.h>
-#include <stdbool.h>
 #include <string.h>
-#include "hoduli.h"
-
-typedef struct String {
-    const char *content;
-    const size_t size;
-} String;
+#include "util_int.h"
 
 const String EMPTY_STRING = { .content = 0, .size = 0 };
 
@@ -84,42 +73,32 @@ size_t str_parse_uint_dec(String str, unsigned int *into) {
     return str.size;
 }
 
-void str_print(String str) {
-    printf("%.*s", (int)str.size, str.content);
-}
-
-void str_debug_print(String str) {
-    if (str.content == 0) {
-        printf("''[empty]");
-        return;
-    }
-    printf("'%.*s'[%zu]", (int)str.size, str.content, str.size);
-}
-
-typedef struct StringWriter {
+typedef struct {
     char *content;
     size_t size;
     size_t capacity;
-} StringWriter;
+} StringBuilder;
 
-error strw_init(StringWriter *sw, size_t cap) {
+StringBuilder *strb_new(size_t cap) {
     if (cap == 0) {
         cap = 64;
     }
 
-    sw->content = malloc(cap * sizeof(char));
-    if (sw->content == 0) {
-        return E_MEMORY;
+    StringBuilder *sb = malloc(sizeof(StringBuilder));
+
+    sb->content = malloc(cap * sizeof(char));
+    if (sb->content == 0) {
+        return 0;
     }
 
-    sw->size = 0;
-    sw->capacity = cap;
-    return E_NONE;
+    sb->size = 0;
+    sb->capacity = cap;
+    return sb;
 }
 
-error strw_append(StringWriter *sw, const String str) {
-    if (sw->size + str.size > sw->capacity) {
-        size_t cap_incr = sw->capacity;
+error strb_append(StringBuilder *sb, const String str) {
+    if (sb->size + str.size > sb->capacity) {
+        size_t cap_incr = sb->capacity;
 
         if (cap_incr == 0) {
             cap_incr = 64;
@@ -131,35 +110,35 @@ error strw_append(StringWriter *sw, const String str) {
             cap_incr = str.size;
         }
 
-        sw->content = realloc(sw->content, sw->capacity + cap_incr);
-        if (sw->content == 0) {
+        sb->content = realloc(sb->content, sb->capacity + cap_incr);
+        if (sb->content == 0) {
             return E_MEMORY;
         }
 
-        sw->capacity += cap_incr;
+        sb->capacity += cap_incr;
     }
 
     for (size_t i = 0; i < str.size; i++) {
-        sw->content[sw->size + i] = str.content[i];
+        sb->content[sb->size + i] = str.content[i];
     }
 
-    sw->size += str.size;
+    sb->size += str.size;
     return E_NONE;
 }
 
-error strw_appendc(StringWriter *sw, const char *c_str) {
-    return strw_append(sw, str_wrap(c_str));
+error strb_appendc(StringBuilder *sb, const char *c_str) {
+    return strb_append(sb, str_wrap(c_str));
 }
 
-String strw_render(StringWriter *sw) {
+String strb_render(StringBuilder *sb) {
     String result = {
-        .content = realloc(sw->content, sw->size),
-        .size = sw->size
+        .content = realloc(sb->content, sb->size),
+        .size = sb->size
     };
 
-    sw->content = 0;
-    sw->size = 0;
-    sw->capacity = 0;
+    sb->content = 0;
+    sb->size = 0;
+    sb->capacity = 0;
 
     if (result.content == 0) {
         return EMPTY_STRING;
@@ -167,5 +146,3 @@ String strw_render(StringWriter *sw) {
 
     return result;
 }
-
-#endif

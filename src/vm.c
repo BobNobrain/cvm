@@ -1,8 +1,8 @@
 #include <stdio.h>
 #include <stddef.h>
-#include "hoduli.h"
-#include "program.h"
-#include "vm.h"
+#include "util.h"
+#include "lang.h"
+#include "rt.h"
 
 int main() {
     ERR_DECL
@@ -15,7 +15,7 @@ int main() {
     };
 
     VMachine vm;
-    err = vm_init(&vm, cfg);
+    err = rt_vm_init(&vm, cfg);
     if (err != E_NONE) {
         printf("vm init failed\n");
         return -1;
@@ -23,32 +23,32 @@ int main() {
 
     printf("vm initialized\n");
 
-    memory_print(vm.smem, 16);
+    rt_memory_print(vm.smem, 16);
 
     ProgramWriter pw;
-    err = program_init_writer(&pw);
+    err = lang_program_init_writer(&pw);
     if (err != E_NONE) {
         printf("ProgramWriter init failed\n");
         return -1;
     }
 
-    program_write_instr(&pw, instr_push(value_numi(30)));
-    program_write_instr(&pw, instr_push(value_numi(20)));
-    program_write_instr(&pw, instr_binop(BINOP_IADD));
-    program_write_instr(&pw, instr_push(value_numi(10)));
-    program_write_instr(&pw, instr_binop(BINOP_IDIV));
+    lang_program_write_instr(&pw, lang_instr_make_push(lang_value_make_numi(30)));
+    lang_program_write_instr(&pw, lang_instr_make_push(lang_value_make_numi(20)));
+    lang_program_write_instr(&pw, lang_instr_make_binop(BINOP_IADD));
+    lang_program_write_instr(&pw, lang_instr_make_push(lang_value_make_numi(10)));
+    lang_program_write_instr(&pw, lang_instr_make_binop(BINOP_IDIV));
 
     Program p;
-    program_finish(&pw, &p);
+    lang_program_finish(&pw, &p);
 
-    program_print(p);
+    lang_program_print(p);
 
-    err = vm_execute(&vm, p);
+    err = rt_vm_execute(&vm, p);
     if (err != E_NONE) {
         printf("Failed to execute (%d)\n", err);
     }
 
-    memory_print(vm.smem, 16);
+    rt_memory_print(vm.smem, 16);
 
     return 0;
 }
