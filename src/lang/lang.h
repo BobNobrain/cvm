@@ -124,7 +124,7 @@ typedef enum InstructionType {
     I_INVALID
 } InstructionType;
 
-typedef unsigned int InstructionPtr;
+typedef size_t InstructionPtr;
 
 typedef Value IPushData;
 typedef ValueType IPopData;

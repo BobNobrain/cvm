@@ -82,7 +82,7 @@ size_t lang_value_get_data_size(ValueType type) {
 
 void lang_value_print(Value v) {
     StringBuilder *sw = strb_new(16);
-    lang_value_to_string(v, &sw);
-    String rendered = strb_render(&sw);
+    lang_value_to_string(v, sw);
+    String rendered = strb_render(sw);
     printf(STR_FMT, STR_FMT_VAL(rendered));
 }

@@ -70,22 +70,24 @@ void lang_program_print(Program p) {
     char buffer[128];
 
     StringBuilder *sw = strb_new(64);
+    snprintf(buffer, buffer_size, "program(%zu):\n", p.length);
+    strb_appendc(sw, buffer);
 
     while (ptr < p.length) {
         size_t ilen = lang_program_read_instr(p, ptr, &instr);
         if (ilen == 0) {
-            printf("failed to read next instruction at %d", ptr);
+            printf("failed to read next instruction at %zu", ptr);
             return;
         }
 
-        snprintf(buffer, buffer_size, "%3d ", ptr);
-        strb_appendc(&sw, buffer);
-        lang_instr_to_string(instr, &sw);
-        strb_appendc(&sw, "\n");
+        snprintf(buffer, buffer_size, "%3zu ", ptr);
+        strb_appendc(sw, buffer);
+        lang_instr_to_string(instr, sw);
+        strb_appendc(sw, "\n");
 
         ptr += ilen;
     }
 
-    String result = strb_render(&sw);
-    printf(STR_FMT, STR_FMT_VAL(result));
+    String result = strb_render(sw);
+    printf(STR_FMT "\n", STR_FMT_VAL(result));
 }

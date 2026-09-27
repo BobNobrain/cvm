@@ -100,12 +100,12 @@ void lang_instr_to_string(Instruction instr, StringBuilder *sw) {
         break;
 
     case I_JMP:
-        snprintf(buffer, buffer_size, "JMP %d", instr.data.jmp);
+        snprintf(buffer, buffer_size, "JMP %zu", instr.data.jmp);
         strb_appendc(sw, buffer);
         break;
 
     case I_JMPZ:
-        snprintf(buffer, buffer_size, "JMPZ %d", instr.data.jmpz);
+        snprintf(buffer, buffer_size, "JMPZ %zu", instr.data.jmpz);
         strb_appendc(sw, buffer);
         break;
 
