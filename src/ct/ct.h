@@ -74,7 +74,8 @@ typedef struct Tokenizer {
 } Tokenizer;
 
 extern void ct_tokenizer_init(Tokenizer *t);
-extern error ct_tokenizer_run(Tokenizer *t, String source);
+extern error ct_tokenizer_run(Tokenizer *t, String source, DocumentError *err);
+extern void ct_tokenizer_print(Tokenizer *t);
 
 
 /** Language AST */
@@ -94,7 +95,6 @@ typedef enum ASTNodeType {
 
 typedef struct ASTNode {
     ASTNodeType type;
-    struct ASTNode *parent;
     struct ASTNode **children;
     size_t n_children;
     size_t children_cap;
@@ -110,8 +110,10 @@ typedef struct {
     size_t current_block_size;
 } ASTree;
 
-extern void ct_ast_tree_init(ASTree *tree);
-extern ASTNode *ct_ast_node_new(ASTree *tree, ASTNodeType type, ASTNode *parent);
+extern void ct_astree_init(ASTree *tree);
+extern void ct_astree_destroy(ASTree *tree);
+extern ASTNode *ct_astnode_new(ASTree *tree, ASTNodeType type);
+extern void ct_astnode_print(ASTNode *node);
 
 
 /** The parser itself */
@@ -120,11 +122,24 @@ typedef struct {
     Token *input_next;
     size_t input_size;
 
-    ASTree result;
+    ASTree tree;
+    ASTNode *root;
     ASTNode *current;
 } Parser;
 
-extern void ct_ast_parser_init(Parser *p, Tokenizer *input);
+typedef error (*ParserGrammar)(Parser*, DocumentError*);
+
+extern Parser *ct_parser_new();
+extern void ct_parser_destroy(Parser *p);
+extern error ct_parser_parse(Parser *p, String source, ParserGrammar grammar, DocumentError *error);
+extern Token *ct_parser_consume(Parser *p);
+extern Token *ct_parser_consume_if(Parser *p, TokenType type);
+extern void ct_parser_rewind(Parser *p, Token *to);
+
+
+/** Grammars */
+extern error ct_grammar_expr(Parser *p, DocumentError *err);
+
 
 /** Hiding all internal macros */
 #ifndef CT_INTERNAL

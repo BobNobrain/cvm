@@ -6,7 +6,7 @@
 #include "util.h"
 #include "ct_int.h"
 
-void ct_ast_tree_allocate_block(ASTree *tree) {
+void ct_astree_allocate_block(ASTree *tree) {
     if (tree->n_blocks_used >= tree->capacity) {
         size_t cap_increase = tree->capacity;
         if (cap_increase > 1024) {
@@ -25,19 +25,25 @@ void ct_ast_tree_allocate_block(ASTree *tree) {
     tree->current_block_size = 0;
 }
 
-void ct_ast_tree_init(ASTree *tree) {
+void ct_astree_init(ASTree *tree) {
     tree->block_size = 64;
     tree->capacity = 32;
     tree->n_blocks_used = 0;
     tree->current_block_size = 0;
     tree->blocks = malloc_or_die(sizeof(ASTNode*) * tree->capacity);
 
-    ct_ast_tree_allocate_block(tree);
+    ct_astree_allocate_block(tree);
+}
+void ct_astree_destroy(ASTree *tree) {
+    for (size_t i = 0; i < tree->n_blocks_used; i++) {
+        free(tree->blocks[i]);
+    }
+    free(tree->blocks);
 }
 
-ASTNode *ct_ast_node_new(ASTree *tree, ASTNodeType type, ASTNode *parent) {
+ASTNode *ct_astnode_new(ASTree *tree, ASTNodeType type) {
     if (tree->current_block_size >= tree->block_size || tree->n_blocks_used == 0) {
-        ct_ast_tree_allocate_block(tree);
+        ct_astree_allocate_block(tree);
     }
 
     ASTNode *block = tree->blocks[tree->n_blocks_used - 1];
@@ -45,7 +51,6 @@ ASTNode *ct_ast_node_new(ASTree *tree, ASTNodeType type, ASTNode *parent) {
     tree->current_block_size += 1;
 
     new_node->type = type;
-    new_node->parent = parent;
     new_node->base = 0;
     new_node->n_children = 0;
 
@@ -68,11 +73,60 @@ ASTNode *ct_ast_node_new(ASTree *tree, ASTNodeType type, ASTNode *parent) {
     return new_node;
 }
 
-void ct_ast_parser_init(Parser *p, Tokenizer *input) {
-    p->input_start = input->tokens; // TODO: copy into own memory?
-    p->input_size = input->size;
-    p->input_next = p->input_start;
-    p->current = 0;
+void ct_astnode_to_string(ASTNode *node, StringBuilder *sb, size_t indent) {
+    const size_t buffer_size = 128;
+    char buffer[buffer_size];
 
-    ct_ast_tree_init(&p->result);
+    for (size_t i = 0; i < indent; i++) {
+        strb_appendc(sb, "  ");
+    }
+
+    switch (node->type) {
+    case AST_TYPE_LINT:
+        snprintf(buffer, buffer_size, "INT %d", node->base->data.intl);
+        strb_appendc(sb, buffer);
+        break;
+    case AST_TYPE_LFLOAT:
+        snprintf(buffer, buffer_size, "FLOAT %f", node->base->data.floatl);
+        strb_appendc(sb, buffer);
+        break;
+    case AST_TYPE_LBOOL:
+        snprintf(buffer, buffer_size, "BOOL %d", node->base->data.booll);
+        strb_appendc(sb, buffer);
+        break;
+    case AST_TYPE_IDENT:
+        strb_appendc(sb, "IDENT");
+        break;
+    case AST_TYPE_BINOP:
+        snprintf(buffer, buffer_size, "BINOP " STR_FMT, STR_FMT_VAL(node->base->data.op));
+        strb_appendc(sb, buffer);
+        break;
+    case AST_TYPE_UNOP:
+        snprintf(buffer, buffer_size, "UNOP " STR_FMT, STR_FMT_VAL(node->base->data.op));
+        strb_appendc(sb, buffer);
+        break;
+
+    default:
+        strb_appendc(sb, "UNKNOWN");
+        break;
+    }
+
+    strb_appendc(sb, "\n");
+
+    for (size_t i = 0; i < node->n_children; i++) {
+        ct_astnode_to_string(node->children[i], sb, indent + 1);
+    }
+}
+
+void ct_astnode_print(ASTNode *node) {
+    if (node == 0) {
+        printf("<null>");
+        return;
+    }
+
+    StringBuilder *sb = strb_new(256);
+    ct_astnode_to_string(node, sb, 0);
+
+    String result = strb_render(sb);
+    printf(STR_FMT "\n", STR_FMT_VAL(result));
 }

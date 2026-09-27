@@ -20,6 +20,7 @@ typedef enum {
 #define ERR_PASS(EXPR) err = (EXPR); if (err != 0) { return err; }
 #define ERR_RET(RET, EXPR) err = (EXPR); if (err != 0) { return E; }
 #define ERR_CHECK_NOT_NULL(PTR) = (PTR == 0 ? E_MEMORY : E_NONE)
+#define ERR_ISSET (err != E_NONE)
 
 
 /** Same as malloc, but crashes the program if memory was not allocated */
@@ -30,12 +31,12 @@ extern void *realloc_or_die(void *old, size_t size);
 
 /** String is a simple wrapper around C strings that allows seamless slicing. It is not zero-terminated. */
 typedef struct {
-    const char *content;
-    const size_t size;
+    char *content;
+    size_t size;
 } String;
 
 /** Wraps a zero-terminated C string into String struct (points to the same underlying data) */
-extern String str_wrap(const char *c_str);
+extern String str_wrap(char *c_str);
 extern String str_substring(String source, size_t start, size_t end);
 extern void str_assign(String *into, String value);
 extern size_t str_compc(String str, const char* c_str, size_t n);

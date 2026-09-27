@@ -3,7 +3,7 @@
 
 const String EMPTY_STRING = { .content = 0, .size = 0 };
 
-String str_wrap(const char *c_str) {
+String str_wrap(char *c_str) {
     size_t size = strlen(c_str);
     String result = { .content = c_str, .size = size };
     return result;
@@ -58,16 +58,14 @@ bool str_eqc(String str, const char* c_str) {
 size_t str_parse_uint_dec(String str, unsigned int *into) {
     *into = 0;
 
-    unsigned int place = 1;
-
     for (size_t i = 0; i < str.size; i++) {
-        char next = str.content[str.size - i - 1];
+        char next = str.content[i];
         if (next < '0' || '9' < next) {
             return i;
         }
 
-        *into += place * (next - '0');
-        place *= 10;
+        *into *= 10;
+        *into += next - '0';
     }
 
     return str.size;
@@ -117,7 +115,7 @@ void strb_append(StringBuilder *sb, const String str) {
     sb->size += str.size;
 }
 
-void strb_appendc(StringBuilder *sb, const char *c_str) {
+void strb_appendc(StringBuilder *sb, char *c_str) {
     strb_append(sb, str_wrap(c_str));
 }
 

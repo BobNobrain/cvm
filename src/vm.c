@@ -35,7 +35,7 @@ int main() {
     lang_program_print(p);
 
     err = rt_vm_execute(&vm, p);
-    if (err != E_NONE) {
+    if (ERR_ISSET) {
         printf("Failed to execute (%d)\n", err);
     }
 

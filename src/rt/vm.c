@@ -196,7 +196,7 @@ error rt_vm_execute(VMachine *vm, Program p) {
         vm->current += ilen;
 
         err = rt_vm_exec_instr(vm, instr);
-        if (err != E_NONE) {
+        if (ERR_ISSET) {
             vm->state = VMState_CRASHED;
         }
     }

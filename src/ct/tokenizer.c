@@ -205,6 +205,9 @@ bool ct_tokenizer_parse_token(Token *token, String source, DocumentError *error)
         break;
     }
 
+    case TOKEN_OPERATOR:
+        token->data.op = ct_document_substring(source, token->range);
+
     default:
         return true;
     }
@@ -222,7 +225,7 @@ bool ct_tokenizer_parse_token(Token *token, String source, DocumentError *error)
         continue; \
     }
 
-error ct_tokenizer_run(Tokenizer *t, String source) {
+error ct_tokenizer_run(Tokenizer *t, String source, DocumentError *docerr) {
     String rest = source;
     size_t consumed;
     Token current;
@@ -246,14 +249,62 @@ error ct_tokenizer_run(Tokenizer *t, String source) {
         return E_BAD_DATA;
     }
 
-    DocumentError docerr = { .source = source };
     for (size_t i = 0; i < t->size; i++) {
-        if (!ct_tokenizer_parse_token(&t->tokens[i], source, &docerr)) {
-            printf("Parsing failed: ");
-            ct_document_print_error(docerr);
+        if (!ct_tokenizer_parse_token(&t->tokens[i], source, docerr)) {
             return E_BAD_DATA;
         }
     }
 
     return E_NONE;
+}
+
+void ct_token_to_string(Token token, StringBuilder *sb) {
+    const size_t buffer_size = 128;
+    char buffer[buffer_size];
+
+    switch (token.type) {
+    case TOKEN_IDENT:
+        strb_appendc(sb, "<ident>");
+        break;
+    case TOKEN_INT_LITERAL:
+        snprintf(buffer, buffer_size, "<int:%d>", token.data.intl);
+        strb_appendc(sb, buffer);
+        break;
+    case TOKEN_FLOAT_LITERAL:
+        snprintf(buffer, buffer_size, "<float:%f>", token.data.floatl);
+        strb_appendc(sb, buffer);
+        break;
+    case TOKEN_BOOL_LITERAL:
+        if (token.data.booll) {
+            strb_appendc(sb, "<true>");
+        } else {
+            strb_appendc(sb, "<false>");
+        }
+        break;
+    case TOKEN_OPERATOR:
+        snprintf(buffer, buffer_size, "<operator:" STR_FMT ">", STR_FMT_VAL(token.data.op));
+        strb_appendc(sb, buffer);
+        break;
+    case TOKEN_OPEN_PAREN:
+        strb_appendc(sb, "(");
+        break;
+    case TOKEN_CLOSE_PAREN:
+        strb_appendc(sb, ")");
+        break;
+
+    default:
+        strb_appendc(sb, "?");
+        break;
+    }
+}
+
+void ct_tokenizer_print(Tokenizer *t) {
+    StringBuilder *sb = strb_new(128);
+
+    for (size_t i = 0; i < t->size; i++) {
+        ct_token_to_string(t->tokens[i], sb);
+    }
+
+    String result = strb_render(sb);
+    printf(STR_FMT "\n", STR_FMT_VAL(result));
 }
