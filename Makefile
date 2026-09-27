@@ -47,12 +47,13 @@ $(OUT_DIR)/$(1).o: src/$(1).c $(foreach lib,$(2),src/$(lib)/$(lib).h)
 	$(CC) $(CPPFLAGS) $(CFLAGS) -c $$< -o $$@
 endef
 
-$(eval $(call EXEC_COMPILATION_RULE,exprc,$(ALL_LIB_NAMES)))
-$(eval $(call EXEC_COMPILATION_RULE,c,$(ALL_LIB_NAMES)))
-$(eval $(call EXEC_COMPILATION_RULE,vm,$(ALL_LIB_NAMES)))
+$(eval $(call EXEC_COMPILATION_RULE,exprc,util lang ct))
+$(eval $(call EXEC_COMPILATION_RULE,c,util lang ct))
+$(eval $(call EXEC_COMPILATION_RULE,vm,util lang rt))
 
 clean:
 	rm -rf out
+	mkdir -p header
 	mkdir -p out/debug/libs
 	mkdir -p out/release/libs
 
