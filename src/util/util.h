@@ -45,6 +45,20 @@ extern void *malloc_or_die(size_t size);
 /** Same as realloc, but crashes the program if memory was not reallocated */
 extern void *realloc_or_die(void *old, size_t size);
 
+#ifndef UTIL_ARENA_IMPL
+/** StringBuilder utility to assemble large strings from multiple parts */
+typedef void Arena;
+#else
+typedef struct Arena Arena;
+#endif
+
+extern Arena* arena_new(size_t region_size);
+extern void arena_destroy(Arena *arena);
+extern void* arena_alloc(Arena *arena, size_t bytes);
+extern void* arena_realloc(Arena *arena, void *ptr, size_t old_size, size_t new_size);
+extern Arena* arena_global();
+extern Arena* arena_TODO();
+
 
 /** String is a simple wrapper around C strings that allows seamless slicing. It is not zero-terminated. */
 typedef struct {
@@ -74,7 +88,7 @@ size_t str_parse_uint_dec(String str, unsigned int *into); // TODO: shouldn't be
 /** StringBuilder utility to assemble large strings from multiple parts */
 typedef void StringBuilder;
 
-extern StringBuilder *strb_new(size_t cap);
+extern StringBuilder *strb_new(Arena *arena, size_t cap);
 extern void strb_append(StringBuilder *sb, const String str);
 extern void strb_appendc(StringBuilder *sb, const char *c_str);
 extern String strb_render(StringBuilder *sb);

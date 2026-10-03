@@ -8,16 +8,18 @@
 
 ARRAY_METHODS_IMPL(ct_tokenarray, Token)
 
-void ct_tokenizer_init(Tokenizer *t) {
+void ct_tokenizer_init(Tokenizer *t, Arena *arena) {
     t->size = 0;
     t->capacity = 128;
-    t->tokens = malloc_or_die(t->capacity * sizeof(Token));
+    t->tokens = arena_alloc(arena, t->capacity * sizeof(Token));
+    t->arena = arena;
 }
 
 void ct_tokenizer_push_token(Tokenizer *t, Token token) {
     if (t->size >= t->capacity) {
+        size_t old_cap = t->capacity;
         t->capacity += 128;
-        t->tokens = realloc_or_die(t->tokens, t->capacity);
+        t->tokens = arena_realloc(t->arena, t->tokens, old_cap, t->capacity);
     }
 
     memcpy(&t->tokens[t->size], &token, sizeof(token));
@@ -301,7 +303,7 @@ void ct_token_to_string(Token token, StringBuilder *sb) {
 }
 
 void ct_tokenizer_print(Tokenizer *t) {
-    StringBuilder *sb = strb_new(128);
+    StringBuilder *sb = strb_new(t->arena, 128);
 
     for (size_t i = 0; i < t->size; i++) {
         ct_token_to_string(t->tokens[i], sb);

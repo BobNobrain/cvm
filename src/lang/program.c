@@ -69,7 +69,7 @@ void lang_program_print(Program p) {
     const size_t buffer_size = 128;
     char buffer[128];
 
-    StringBuilder *sw = strb_new(64);
+    StringBuilder *sw = strb_new(arena_TODO(), 64);
     snprintf(buffer, buffer_size, "program(%zu):\n", p.length);
     strb_appendc(sw, buffer);
 

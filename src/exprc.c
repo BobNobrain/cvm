@@ -7,7 +7,7 @@
 
 int main() {
     ERR_DECL
-    char TEST_EXPR[] = "(30.208 + -502 * 1) ";
+    char TEST_EXPR[] = "a + b < c + b == -10 && 3 / 2 <> 1";
     String source = str_wrap(TEST_EXPR);
 
     OperatorDecl optable[] = {
@@ -32,7 +32,8 @@ int main() {
     };
     OperatorDeclSlice optable_slice = ct_opdeclslice_of_const(optable, sizeof(optable) / sizeof(OperatorDecl));
 
-    Parser *p = ct_parser_new();
+    Arena *parser_arena = arena_new(32768);
+    Parser *p = ct_parser_new(parser_arena);
     ct_parser_configure_operators(p, optable_slice);
     DocumentError docerr = { .source = source };
 
@@ -43,6 +44,6 @@ int main() {
         return -1;
     }
 
-    ct_parser_destroy(p);
+    arena_destroy(parser_arena);
     return 0;
 }

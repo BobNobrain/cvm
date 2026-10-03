@@ -8,9 +8,11 @@
 #include <stdbool.h>
 #include "util.h"
 
+typedef struct Parser Parser;
+
 
 /** Aux structures to aid with parsing */
-typedef struct {
+typedef struct DocumentPos {
     size_t caret;
     size_t line;
     size_t column;
@@ -72,9 +74,10 @@ typedef struct Tokenizer {
     Token *tokens;
     size_t size;
     size_t capacity;
+    Arena *arena;
 } Tokenizer;
 
-extern void ct_tokenizer_init(Tokenizer *t);
+extern void ct_tokenizer_init(Tokenizer *t, Arena *arena);
 extern error ct_tokenizer_run(Tokenizer *t, String source, DocumentError *err);
 extern void ct_tokenizer_print(Tokenizer *t);
 
@@ -134,39 +137,29 @@ typedef struct ASTNode {
     #undef AST_TYPES_LIST_X
 } ASTNode;
 
-typedef struct {
-    ASTNode **blocks;
-    size_t block_size;
-    size_t n_blocks_used;
-    size_t capacity;
-    size_t current_block_size;
-} ASTree;
-
-extern void ct_astree_init(ASTree *tree);
-extern void ct_astree_destroy(ASTree *tree);
-extern ASTNode *ct_astnode_new(ASTree *tree, ASTNodeType type);
-extern ASTNode *ct_astnode_new_error(ASTree *tree, DocumentError docerr);
+extern ASTNode *ct_astnode_new(Parser *p, ASTNodeType type);
+extern ASTNode *ct_astnode_new_error(Parser *p, DocumentError docerr);
 extern void ct_astnode_print(ASTNode *node, size_t indent);
 extern bool ct_astnode_is_error(ASTNode *node);
 
 
 /** The parser itself */
-typedef struct {
+struct Parser {
+    Arena *arena;
+
     Token *input_start;
     Token *input_next;
     size_t input_size;
 
-    ASTree tree;
     ASTNode *root;
 
     // language settings
     OperatorDeclSlice optable;
-} Parser;
+};
 
 typedef ASTNode* (*ParserGrammar)(Parser*, DocumentError*);
 
-extern Parser *ct_parser_new();
-extern void ct_parser_destroy(Parser *p);
+extern Parser *ct_parser_new(Arena *arena);
 extern void ct_parser_configure_operators(Parser *p, OperatorDeclSlice optable);
 extern error ct_parser_parse(Parser *p, String source, ParserGrammar grammar, DocumentError *error);
 extern Token *ct_parser_consume(Parser *p);

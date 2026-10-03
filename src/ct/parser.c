@@ -2,21 +2,16 @@
 #include "util.h"
 #include "ct_int.h"
 
-Parser *ct_parser_new() {
-    Parser *parser = malloc_or_die(sizeof(Parser));
+Parser *ct_parser_new(Arena *arena) {
+    Parser *parser = arena_alloc(arena, sizeof(Parser));
+    parser->arena = arena;
 
     parser->input_start = 0;
     parser->input_next = 0;
     parser->input_size = 0;
     parser->root = 0;
 
-    ct_astree_init(&parser->tree);
     return parser;
-}
-
-void ct_parser_destroy(Parser *p) {
-    ct_astree_destroy(&p->tree);
-    free(p);
 }
 
 Token *ct_parser_consume(Parser *p) {
@@ -81,7 +76,7 @@ error ct_parser_parse(Parser *p, String source, ParserGrammar grammar, DocumentE
 
     ERR_DECL
     Tokenizer t;
-    ct_tokenizer_init(&t);
+    ct_tokenizer_init(&t, p->arena);
     ERR_PASS( ct_tokenizer_run(&t, source, docerr) )
 
     printf("TOKENS:\n");

@@ -85,15 +85,17 @@ typedef struct {
     char *content;
     size_t size;
     size_t capacity;
+    Arena *arena;
 } StringBuilder;
 
-StringBuilder *strb_new(size_t cap) {
+StringBuilder *strb_new(Arena *arena, size_t cap) {
     if (cap == 0) {
         cap = 64;
     }
 
-    StringBuilder *sb = malloc_or_die(sizeof(StringBuilder));
-    sb->content = malloc_or_die(cap * sizeof(char));
+    StringBuilder *sb = arena_alloc(arena, sizeof(StringBuilder));
+    sb->arena = arena;
+    sb->content = arena_alloc(arena, cap * sizeof(char));
 
     sb->size = 0;
     sb->capacity = cap;
@@ -114,7 +116,7 @@ void strb_append(StringBuilder *sb, const String str) {
             cap_incr = str.size;
         }
 
-        sb->content = realloc_or_die(sb->content, sb->capacity + cap_incr);
+        sb->content = arena_realloc(sb->arena, sb->content, sb->capacity, sb->capacity + cap_incr);
         sb->capacity += cap_incr;
     }
 
@@ -131,7 +133,7 @@ void strb_appendc(StringBuilder *sb, char *c_str) {
 
 String strb_render(StringBuilder *sb) {
     String result = {
-        .content = realloc_or_die(sb->content, sb->size),
+        .content = arena_realloc(sb->arena, sb->content, sb->capacity, sb->size),
         .size = sb->size
     };
 
