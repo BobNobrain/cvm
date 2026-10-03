@@ -140,13 +140,20 @@ extern void ct_tokenizer_print(Tokenizer *t);
     X(ASTNodeType_LBOOL, bool, lbool) \
     X(ASTNodeType_IDENT, String, ident) \
     X(ASTNodeType_BINOP, , ) \
-    X(ASTNodeType_UNOP, , )
+    X(ASTNodeType_UNOP, , ) \
+    X(ASTNodeType_ASSIGNMENT, ASTAssignment, assignment) \
+    X(ASTNodeType_LMB_FILE, , ) \
 
 #define AST_TYPES_LIST_X(CONST_NAME, DATA_TYPE, FIELD_NAME) CONST_NAME,
 typedef enum ASTNodeType {
     AST_TYPES_LIST(AST_TYPES_LIST_X)
 } ASTNodeType;
 #undef AST_TYPES_LIST_X
+
+typedef struct ASTAssignment {
+    String identifier;
+    Token *ident_token;
+} ASTAssignment;
 
 typedef struct ASTNode {
     ASTNodeType type;
@@ -163,8 +170,10 @@ typedef struct ASTNode {
     #undef AST_TYPES_LIST_X
 } ASTNode;
 
-extern ASTNode *ct_astnode_new(Parser *p, ASTNodeType type);
-extern ASTNode *ct_astnode_new_error(Parser *p, DocumentError docerr);
+extern ASTNode* ct_astnode_new(Parser *p, ASTNodeType type);
+extern ASTNode* ct_astnode_new_error(Parser *p, DocumentError docerr);
+extern void ct_astnode_append_child(Parser *p, ASTNode *parent, ASTNode *child);
+extern ASTNode* ct_astnode_new_error2(Parser *parser, String msg, DocumentRange range);
 extern void ct_astnode_print(ASTNode *node, size_t indent);
 extern bool ct_astnode_is_error(ASTNode *node);
 
@@ -208,6 +217,7 @@ extern DocumentError ct_parser_make_error(Parser *p, char* msg, DocumentRange ra
 
 /** Grammars */
 extern ASTNode* ct_grammar_expr(Parser *p);
+extern ASTNode* ct_grammar_lmb_file(Parser *p);
 
 
 /** Hiding all internal macros */

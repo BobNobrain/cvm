@@ -1,15 +1,7 @@
 #include <stdio.h>
 #include "util.h"
 #include "ct_int.h"
-
-#define GRAMMAR_ONEOF_START ParserRewindPoint saved_pos = { .input = p->input }; ASTNode *result = 0;
-#define GRAMMAR_ONEOF_TRY(GRAMMAR) \
-    result = GRAMMAR(p, docerr);        \
-    if (result != 0) {                  \
-        return result;                  \
-    } else {                            \
-        ct_parser_rewind(p, saved_pos); \
-    }
+#include "grammar_int.h"
 
 #define EXPR_DEBUG 0
 

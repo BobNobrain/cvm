@@ -7,7 +7,9 @@
 int main() {
     ERR_DECL
     FILE *input = stdin;
+
     Arena *arena = arena_new(65536);
+    arena_set_max_regions(arena, 8); // 512 KiB memory limig
 
     StringBuilder *text_builder = strb_new(arena, 16384);
     err = strb_read_from_stream(text_builder, input);
@@ -27,7 +29,7 @@ int main() {
     }
 
     printf("\n\n===============================\n");
-    ct_parser_parse(p, program_text, ct_grammar_expr);
+    ct_parser_parse(p, program_text, ct_grammar_lmb_file);
 
     if (p->errors.size > 0) {
         printf("\nparse failed: \n");

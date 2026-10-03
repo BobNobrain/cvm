@@ -15,6 +15,7 @@ ASTNode* ct_astnode_new(Parser *parser, ASTNodeType type) {
 
     switch (type) {
     case ASTNodeType_BINOP:
+    case ASTNodeType_ASSIGNMENT:
         new_node->children_cap = 2;
         new_node->children = arena_alloc(parser->arena, sizeof(ASTNode*) * new_node->children_cap);
         break;
@@ -36,6 +37,35 @@ ASTNode* ct_astnode_new_error(Parser *parser, DocumentError docerr) {
     e->data.error = docerr.message;
     e->range = docerr.location;
     return e;
+}
+ASTNode* ct_astnode_new_error2(Parser *parser, String msg, DocumentRange range) {
+    ASTNode *e = ct_astnode_new(parser, ASTNodeType_SYNTAX_ERROR);
+    e->data.error = msg;
+    e->range = range;
+    return e;
+}
+
+void ct_astnode_append_child(Parser *p, ASTNode *parent, ASTNode *child) {
+    if (parent->children_cap == 0) {
+        size_t new_cap = 16;
+        parent->children = arena_alloc(p->arena, sizeof(ASTNode*) * new_cap);
+        parent->children_cap = new_cap;
+    } else if (parent->n_children >= parent->children_cap) {
+        size_t cap_increase = parent->children_cap;
+        if (cap_increase >= 128) { cap_increase = 128; }
+        size_t new_cap = cap_increase + parent->children_cap;
+
+        parent->children = arena_realloc(
+            p->arena,
+            parent->children,
+            sizeof(ASTNode*) * parent->children_cap,
+            sizeof(ASTNode*) * new_cap
+        );
+        parent->children_cap = new_cap;
+    }
+
+    parent->children[parent->n_children] = child;
+    parent->n_children += 1;
 }
 
 bool ct_astnode_is_error(ASTNode *node) {
@@ -73,6 +103,12 @@ void ct_astnode_print(ASTNode *node, size_t indent) {
         break;
     case ASTNodeType_UNOP:
         printf("UNOP " STR_FMT, STR_FMT_VAL(node->base->data.op));
+        break;
+    case ASTNodeType_ASSIGNMENT:
+        printf("ASSIGNMENT " STR_FMT " =", STR_FMT_VAL(node->data.assignment.identifier));
+        break;
+    case ASTNodeType_LMB_FILE:
+        printf(".LMB FILE");
         break;
 
     default:

@@ -33,6 +33,7 @@ struct Arena {
     size_t region_size;
     size_t n_regions;
     size_t capacity;
+    size_t max_regions;
 };
 
 const size_t _util_arena_initial_regions_capacity = 32;
@@ -59,7 +60,7 @@ Arena* arena_new(size_t region_size) {
     arena->capacity = _util_arena_initial_regions_capacity;
     arena->regions = malloc_or_die(arena->capacity * sizeof(ArenaRegion));
 
-
+    arena->max_regions = 0;
 
     IFDEBUG( printf("allocated new arena(%zu) <%p>\n", region_size, arena); )
 
@@ -83,9 +84,13 @@ void arena_destroy(Arena *arena) {
 }
 
 ArenaRegion* _util_arena_new_region(Arena *arena) {
+    if (arena->max_regions > 0 && arena->n_regions >= arena->max_regions) {
+        die("arena exceeded max regions allowed");
+    }
+
     if (arena->n_regions >= arena->capacity) {
         arena->capacity += _util_arena_initial_regions_capacity;
-        arena->regions = realloc_or_die(arena->regions, arena->capacity);
+        arena->regions = realloc_or_die(arena->regions, arena->capacity * sizeof(ArenaRegion));
     }
 
     ArenaRegion new_region = { .pos = 0, .size = arena->region_size, .start = 0 };
@@ -192,4 +197,8 @@ Arena* arena_global() {
 
 Arena* arena_TODO() {
     return 0;
+}
+
+void arena_set_max_regions(Arena *arena, size_t max_regions) {
+    arena->max_regions = max_regions;
 }

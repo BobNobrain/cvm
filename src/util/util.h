@@ -59,6 +59,7 @@ extern void* arena_alloc(Arena *arena, size_t bytes);
 extern void* arena_realloc(Arena *arena, void *ptr, size_t old_size, size_t new_size);
 extern Arena* arena_global();
 extern Arena* arena_TODO();
+extern void arena_set_max_regions(Arena *arena, size_t max_regions);
 
 
 /** String is a simple wrapper around C strings that allows seamless slicing. It is not zero-terminated. */
