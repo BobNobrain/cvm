@@ -1,0 +1,25 @@
+{
+    "configurations": [
+        {
+            "name": "Mac",
+            "includePath": [
+                "${workspaceFolder}/**"
+            ],
+            "defines": [ ],
+            "compilerPath": "/usr/bin/clang",
+            "compilerArgs": [ "-Wall", "-Werror", "-Wextra" ],
+            "cStandard": "c11",
+            "cppStandard": "c++17",
+            "macFrameworkPath": [ ],
+            "recursiveIncludes": {
+                "priority": "beforeSystemIncludes"
+            },
+            "intelliSenseMode": "macos-clang-arm64",
+            "browse": {
+                "limitSymbolsToIncludedHeaders": true
+            }
+        }
+    ],
+    "version": 4,
+    "enableConfigurationSquiggles": true
+}
