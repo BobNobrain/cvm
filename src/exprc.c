@@ -6,8 +6,7 @@
     { .op = str_wrap(OP), .type = OperatorType_##TYPE, .priority = P }
 
 int main() {
-    char TEST_EXPR[] = "a + b < c + (b___ ~~ 11) == -10 && 3 / 2 <> 1 ..";
-    String source = str_wrap(TEST_EXPR);
+    String source = STR_CONST("a + b0 < c + (b___ ~~ 11) == -10 && 3 / 2 <> 1 \n");
 
     LangConfig language = ct_langconfig_create();
 

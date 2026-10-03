@@ -80,12 +80,12 @@ void _ct_parser_collect_errors(Parser *p, ASTNode *node) {
 }
 
 void ct_parser_parse(Parser *p, String source, ParserGrammar grammar) {
-    printf("SOURCE: " STR_FMT "\n", STR_FMT_VAL(source));
+    printf("SOURCE: " STR_FMT_DEBUG "\n", STR_FMT_DEBUG_VAL(source));
     p->source = source;
 
     Tokenizer t;
-    ct_tokenizer_init(&t, p->arena);
-    ct_tokenizer_run(&t, source, p->config, &p->errors);
+    ct_tokenizer_init(&t, p->arena, p->config);
+    ct_tokenizer_run(&t, source, &p->errors);
 
     printf("TOKENS:\n");
     ct_tokenizer_print(&t);

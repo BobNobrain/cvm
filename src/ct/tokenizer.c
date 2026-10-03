@@ -10,8 +10,11 @@ ARRAY_METHODS_IMPL(ct_tokenarray, Token)
 SLICE_METHODS_IMPL(ct_tokenslice, Token)
 SLICE_ARRAY_METHODS_IMPL(ct_tokenarray, Token)
 
-void ct_tokenizer_init(Tokenizer *t, Arena *arena) {
+void ct_tokenizer_init(Tokenizer *t, Arena *arena, LangConfig config) {
     ct_tokenarray_init(&t->tokens, 128, arena);
+    t->config = config;
+    t->cursor = ct_document_pos_zero();
+    t->source = STR_EMPTY;
 }
 
 void ct_tokenizer_push_token(Tokenizer *t, Token token) {
@@ -26,18 +29,37 @@ void ct_tokenizer_push_token(Tokenizer *t, Token token) {
     ct_tokenarray_append(&t->tokens, token);
 }
 
-size_t ct_tokenizer_skip_ws(String source, DocumentPos *cursor) {
-    for (size_t i = 0; i < source.size; i++) {
-        char next = source.content[i];
-        switch (next) {
-        case '\n':
-            ct_document_pos_line_break(cursor);
-            break;
+typedef struct TokenScannerResult {
+    size_t chars_scanned;
+    bool cursor_updated;
+    bool token_set;
+    bool token_range_set;
+} TokenScannerResult;
 
+TokenScannerResult _ct_result_ok(size_t chars_scanned) {
+    return (TokenScannerResult) {
+        .chars_scanned = chars_scanned,
+        .cursor_updated = false,
+        .token_set = true,
+        .token_range_set = false,
+    };
+}
+TokenScannerResult _ct_result_fail() {
+    return (TokenScannerResult) {
+        .chars_scanned = 0,
+        .cursor_updated = false,
+        .token_set = false,
+        .token_range_set = false,
+    };
+}
+
+size_t _ct_tokenizer_scan_ws(Tokenizer *t) {
+    for (size_t i = 0; i < t->source.size; i++) {
+        char next = t->source.content[i];
+
+        switch (next) {
         case ' ':
         case '\t':
-        case '\r':
-            ct_document_pos_track(cursor, 1);
             break;
 
         default:
@@ -45,17 +67,46 @@ size_t ct_tokenizer_skip_ws(String source, DocumentPos *cursor) {
         }
     }
 
-    return source.size;
+    return t->source.size;
 }
 
-size_t ct_tokenizer_read_number(String source, Token *into, LangConfig config) {
-    (void)config;
+TokenScannerResult _ct_tokenizer_scan_newline(Tokenizer *t, Token *into) {
+    if (t->source.size == 0) { return _ct_result_fail(); }
 
+    size_t consumed = 0;
+    char next = t->source.content[0];
+
+    if (next == '\n') {
+        consumed = 1;
+    } else if (next == '\r') {
+        if (t->source.size > 1 && t->source.content[1] == '\n') {
+            consumed = 2;
+        } else {
+            consumed = 1;
+        }
+    }
+
+    if (consumed > 0) {
+        into->type = TokenType_NEWLINE;
+        into->range = ct_document_range(t->cursor, consumed);
+        ct_document_pos_line_break(&t->cursor);
+        return (TokenScannerResult) {
+            .chars_scanned = consumed,
+            .cursor_updated = true,
+            .token_set = true,
+            .token_range_set = true,
+        };
+    }
+
+    return _ct_result_fail();
+}
+
+TokenScannerResult _ct_tokenizer_scan_number(Tokenizer *t, Token *into) {
     bool point_met = false;
     size_t i = 0;
 
-    for (; i < source.size; i++) {
-        char next = source.content[i];
+    for (; i < t->source.size; i++) {
+        char next = t->source.content[i];
 
         if ('0' <= next && next <= '9') {
             continue;
@@ -69,13 +120,13 @@ size_t ct_tokenizer_read_number(String source, Token *into, LangConfig config) {
     }
 
     if (i == 0) {
-        return 0;
+        return _ct_result_fail();
     }
 
     if (point_met && i == 1) {
         // a single point is not a valid number literal
         into->type = TokenType_INVALID;
-        return i;
+        return _ct_result_ok(i);
     }
 
     if (point_met) {
@@ -84,14 +135,14 @@ size_t ct_tokenizer_read_number(String source, Token *into, LangConfig config) {
         into->type = TokenType_INT_LITERAL;
     }
 
-    return i;
+    return _ct_result_ok(i);
 }
 
-size_t ct_tokenizer_read_ident(String source, Token *into, LangConfig config) {
+TokenScannerResult _ct_tokenizer_scan_ident(Tokenizer *t, Token *into) {
     size_t i = 0;
 
-    for (; i < source.size; i++) {
-        char next = source.content[i];
+    for (; i < t->source.size; i++) {
+        char next = t->source.content[i];
 
         if ('A' <= next && next <= 'Z') {
             continue;
@@ -102,7 +153,7 @@ size_t ct_tokenizer_read_ident(String source, Token *into, LangConfig config) {
         if ('0' <= next && next <= '9') {
             continue;
         }
-        if (str_index_of(config.allowed_ident_chars, next) != -1) {
+        if (str_index_of(t->config.allowed_ident_chars, next) != -1) {
             continue;
         }
 
@@ -110,38 +161,36 @@ size_t ct_tokenizer_read_ident(String source, Token *into, LangConfig config) {
     }
 
     if (i == 0) {
-        return 0;
+        return _ct_result_fail();
     }
 
     into->type = TokenType_IDENT;
-    return i;
+    return _ct_result_ok(i);
 }
 
-size_t ct_tokenizer_read_op(String source, Token *into, LangConfig config) {
+TokenScannerResult _ct_tokenizer_scan_op(Tokenizer *t, Token *into) {
     size_t i = 0;
-    for (; i < source.size; i++) {
-        char next = source.content[i];
-        if (str_index_of(config.allowed_operator_chars, next) == -1) {
+    for (; i < t->source.size; i++) {
+        char next = t->source.content[i];
+        if (str_index_of(t->config.allowed_operator_chars, next) == -1) {
             break;
         }
     }
 
     if (i == 0) {
-        return 0;
+        return _ct_result_fail();
     }
 
     into->type = TokenType_OPERATOR;
-    return i;
+    return _ct_result_ok(i);
 }
 
-size_t ct_tokenizer_read_paren(String source, Token *into, LangConfig config) {
-    (void)config;
-
-    if (source.size == 0) {
-        return 0;
+TokenScannerResult _ct_tokenizer_scan_paren(Tokenizer *t, Token *into) {
+    if (t->source.size == 0) {
+        return _ct_result_fail();
     }
 
-    char next = source.content[0];
+    char next = t->source.content[0];
     switch (next) {
     case '(':
         into->type = TokenType_OPEN_PAREN;
@@ -151,10 +200,34 @@ size_t ct_tokenizer_read_paren(String source, Token *into, LangConfig config) {
         break;
 
     default:
-        return 0;
+        return _ct_result_fail();
     }
 
-    return 1;
+    return _ct_result_ok(1);
+}
+
+TokenScannerResult _ct_tokenizer_scan_builtin_op(Tokenizer *t, Token *into) {
+    if (t->source.size == 0) {
+        return _ct_result_fail();
+    }
+
+    char next = t->source.content[0];
+    switch (next) {
+    case '\\':
+        into->type = TokenType_LAMBDA;
+        break;
+    case '.':
+        into->type = TokenType_DOT;
+        break;
+    case '=':
+        into->type = TokenType_ASSIGNMENT;
+        break;
+
+    default:
+        return _ct_result_fail();
+    }
+
+    return _ct_result_ok(1);
 }
 
 void ct_tokenizer_parse_token(Token *token, String source, DocumentErrorArray *errors) {
@@ -215,6 +288,15 @@ void ct_tokenizer_parse_token(Token *token, String source, DocumentErrorArray *e
 
     case TokenType_OPERATOR:
         token->data.op = ct_document_substring(source, token->range);
+        // in case these built-in operators were caught by the allowed operator characters set
+        if (str_eq(token->data.op, STR_CONST("="))) {
+            token->type = TokenType_ASSIGNMENT;
+        } else if (str_eq(token->data.op, STR_CONST("\\"))) {
+            token->type = TokenType_LAMBDA;
+        }
+         else if (str_eq(token->data.op, STR_CONST("."))) {
+            token->type = TokenType_DOT;
+        }
         break;
 
     case TokenType_INVALID:
@@ -232,44 +314,59 @@ void ct_tokenizer_parse_token(Token *token, String source, DocumentErrorArray *e
     return;
 }
 
-#define TRY_TOKEN_READER(READER) \
-    consumed = READER(rest, &current, config); \
-    if (consumed > 0) { \
-        current.range = ct_document_range(cursor, consumed); \
-        ct_tokenizer_push_token(t, current); \
-        str_assign(&rest, str_substring(rest, consumed, rest.size)); \
-        ct_document_pos_track(&cursor, consumed); \
-        continue; \
+void _ct_tokenizer_consume_source(Tokenizer *t, size_t n) {
+    t->source = str_substring(t->source, n, t->source.size);
+}
+
+void ct_tokenizer_run(Tokenizer *t, String source, DocumentErrorArray *errors) {
+    t->source = source;
+    t->cursor = ct_document_pos_zero();
+
+    Token current = { .type = TokenType_INVALID };
+    TokenScannerResult scan_result = { 0 };
+
+    #define TRY_TOKEN_SCANNER(READER) \
+    scan_result = READER(t, &current);                                                      \
+    if (scan_result.chars_scanned > 0) {                                                    \
+        printf("succeded with " #READER " (%zu consumed)\n", scan_result.chars_scanned); \
+        _ct_tokenizer_consume_source(t, scan_result.chars_scanned);                         \
+        if (scan_result.token_set) {                                                        \
+            if (!scan_result.token_range_set) {                                             \
+                current.range = ct_document_range(t->cursor, scan_result.chars_scanned);    \
+            }                                                                               \
+            ct_tokenizer_push_token(t, current);                                            \
+        }                                                                                   \
+        if (!scan_result.cursor_updated) {                                                  \
+            ct_document_pos_track(&t->cursor, scan_result.chars_scanned);                   \
+        }                                                                                   \
+        continue;                                                                           \
     }
 
-void ct_tokenizer_run(Tokenizer *t, String source, LangConfig config, DocumentErrorArray *errors) {
-    String rest = source;
-    size_t consumed;
-    Token current;
-    DocumentPos cursor = ct_document_pos_zero();
+    while (t->source.size > 0) {
+        size_t ws_consumed = _ct_tokenizer_scan_ws(t);
+        if (ws_consumed > 0) {
+            _ct_tokenizer_consume_source(t, ws_consumed);
+            ct_document_pos_track(&t->cursor, ws_consumed);
 
-    consumed = ct_tokenizer_skip_ws(rest, &cursor);
-    str_assign(&rest, str_substring(rest, consumed, rest.size));
-
-    while (rest.size > 0) {
-        TRY_TOKEN_READER(ct_tokenizer_read_number)
-        TRY_TOKEN_READER(ct_tokenizer_read_op)
-        TRY_TOKEN_READER(ct_tokenizer_read_paren)
-        TRY_TOKEN_READER(ct_tokenizer_read_ident)
-
-        consumed = ct_tokenizer_skip_ws(rest, &cursor);
-        if (consumed > 0) {
-            str_assign(&rest, str_substring(rest, consumed, rest.size));
-            continue;
+            if (t->source.size == 0) { break; }
         }
+
+        TRY_TOKEN_SCANNER(_ct_tokenizer_scan_number)
+        TRY_TOKEN_SCANNER(_ct_tokenizer_scan_op)
+        TRY_TOKEN_SCANNER(_ct_tokenizer_scan_builtin_op)
+        TRY_TOKEN_SCANNER(_ct_tokenizer_scan_paren)
+        TRY_TOKEN_SCANNER(_ct_tokenizer_scan_ident)
+        TRY_TOKEN_SCANNER(_ct_tokenizer_scan_newline)
 
         // cannot consume the rest, must be invalid input
         current.type = TokenType_INVALID;
-        current.range = ct_document_range(cursor, 1);
+        current.range = ct_document_range(t->cursor, 1);
         ct_tokenizer_push_token(t, current);
-        str_assign(&rest, str_substring(rest, 1, rest.size));
-        ct_document_pos_track(&cursor, 1);
+        _ct_tokenizer_consume_source(t, 1);
+        ct_document_pos_track(&t->cursor, 1);
     }
+
+    #undef TRY_TOKEN_SCANNER
 
     for (size_t i = 0; i < t->tokens.size; i++) {
         ct_tokenizer_parse_token(&t->tokens.content[i], source, errors);
@@ -282,7 +379,9 @@ void ct_token_to_string(Token token, StringBuilder *sb) {
 
     switch (token.type) {
     case TokenType_IDENT:
-        strb_appendc(sb, "<ident> ");
+        strb_appendc(sb, "<ident:");
+        strb_append(sb, token.data.ident);
+        strb_appendc(sb, "> ");
         break;
     case TokenType_INT_LITERAL:
         snprintf(buffer, buffer_size, "<int:%d> ", token.data.intl);
@@ -310,8 +409,24 @@ void ct_token_to_string(Token token, StringBuilder *sb) {
         strb_appendc(sb, ") ");
         break;
 
+    case TokenType_NEWLINE:
+        strb_appendc(sb, "<\\n>\n");
+        break;
+
+    case TokenType_LAMBDA:
+        strb_appendc(sb, "\\ ");
+        break;
+
+    case TokenType_DOT:
+        strb_appendc(sb, ". ");
+        break;
+
+    case TokenType_ASSIGNMENT:
+        strb_appendc(sb, "= ");
+        break;
+
     case TokenType_INVALID:
-        strb_appendc(sb, "<?>");
+        strb_appendc(sb, "<?> ");
         break;
 
     default:

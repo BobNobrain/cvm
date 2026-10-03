@@ -82,13 +82,17 @@ extern String ct_langconfig_validate(const LangConfig cfg);
 
 /** Tokenizer */
 #define TOKEN_LIST(X) \
+    X(TokenType_NEWLINE, , ) \
     X(TokenType_IDENT, String, ident) \
     X(TokenType_INT_LITERAL, int, intl) \
     X(TokenType_FLOAT_LITERAL, float, floatl) \
     X(TokenType_BOOL_LITERAL, bool, booll) \
     X(TokenType_OPERATOR, String, op) \
     X(TokenType_OPEN_PAREN, , ) \
-    X(TokenType_CLOSE_PAREN, , )
+    X(TokenType_CLOSE_PAREN, , ) \
+    X(TokenType_LAMBDA, , ) \
+    X(TokenType_DOT, , ) \
+    X(TokenType_ASSIGNMENT, ,)
 
 #define TOKEN_LIST_X(CONST_NAME, DATA_TYPE, FIELD_NAME) CONST_NAME,
 typedef enum TokenType {
@@ -99,7 +103,7 @@ typedef enum TokenType {
 #undef TOKEN_LIST_X
 
 #define TOKEN_LIST_X(CONST_NAME, DATA_TYPE, FIELD_NAME) DATA_TYPE FIELD_NAME;
-typedef struct {
+typedef struct Token {
     TokenType type;
     DocumentRange range;
     union {
@@ -118,10 +122,13 @@ SLICE_ARRAY_METHODS_DECL(ct_tokenarray, Token)
 
 typedef struct Tokenizer {
     TokenArray tokens;
+    DocumentPos cursor;
+    LangConfig config;
+    String source;
 } Tokenizer;
 
-extern void ct_tokenizer_init(Tokenizer *t, Arena *arena);
-extern void ct_tokenizer_run(Tokenizer *t, String source, LangConfig config, DocumentErrorArray *errors);
+extern void ct_tokenizer_init(Tokenizer *t, Arena *arena, LangConfig config);
+extern void ct_tokenizer_run(Tokenizer *t, String source, DocumentErrorArray *errors);
 extern void ct_tokenizer_print(Tokenizer *t);
 
 
