@@ -2,7 +2,7 @@
 #include "util.h"
 #include "ct_int.h"
 
-#define GRAMMAR_ONEOF_START Token *saved_pos = p->input_next; ASTNode *result = 0;
+#define GRAMMAR_ONEOF_START ParserRewindPoint saved_pos = { .input = p->input }; ASTNode *result = 0;
 #define GRAMMAR_ONEOF_TRY(GRAMMAR) \
     result = GRAMMAR(p, docerr);        \
     if (result != 0) {                  \
@@ -58,7 +58,7 @@ void _ct_print_exprpart_array(ExprPartArray *arr, size_t idx) {
 #define IFDEBUG(S)
 #endif
 
-ASTNode* ct_grammar_parens(Parser *p, DocumentError *docerr);
+ASTNode* ct_grammar_parens(Parser *p);
 
 DocumentRange _ct_exprpart_get_range(ExprPart *part) {
     switch (part->type) {
@@ -97,6 +97,24 @@ ASTNode* _ct_token_wrap_literal(Parser *p, Token *token) {
     ASTNode* lit = ct_astnode_new(p, lit_type);
     lit->base = token;
     lit->range = token->range;
+
+    switch (token->type) {
+    case TOKEN_INT_LITERAL:
+        lit->data.lint = token->data.intl;
+        break;
+    case TOKEN_FLOAT_LITERAL:
+        lit->data.lfloat = token->data.floatl;
+        break;
+    case TOKEN_BOOL_LITERAL:
+        lit->data.lbool = token->data.booll;
+        break;
+    case TOKEN_IDENT:
+        lit->data.ident = token->data.ident;
+        break;
+
+    default: break;
+    }
+
     return lit;
 }
 
@@ -117,9 +135,9 @@ void _ct_collapse_expr_parts(ExprPartArray *parts_array, Parser *p) {
     // - at the end, if the parts array contains the only expression, it is the result
     // - otherwise, the expression is malformed
 
-    for (size_t odi = 0; odi < p->optable.size; odi++) {
+    for (size_t odi = 0; odi < p->config.optable.size; odi++) {
         // direct order, by descending priority
-        OperatorDecl decl = p->optable.content[odi];
+        OperatorDecl decl = p->config.optable.content[odi];
         bool is_right_assoc = false;
         ASTNodeType node_type = AST_TYPE_UNOP;
 
@@ -249,9 +267,9 @@ void _ct_collapse_expr_parts(ExprPartArray *parts_array, Parser *p) {
     IFDEBUG( _ct_print_exprpart_array(parts_array, parts_array->size); )
 }
 
-ASTNode* ct_grammar_operator_expr(Parser *p, DocumentError *docerr) {
+ASTNode* ct_grammar_operator_expr(Parser *p) {
     ExprPartArray parts_array;
-    _ct_exprpart_array_init(&parts_array, 16);
+    _ct_exprpart_array_init(&parts_array, 16, p->arena);
 
     Token *token;
     ExprPart part;
@@ -279,10 +297,11 @@ ASTNode* ct_grammar_operator_expr(Parser *p, DocumentError *docerr) {
         case TOKEN_OPEN_PAREN:
             ct_parser_rewind_n(p, -1);
             part.type = ExprPartType_SUBEXPR;
-            part.data.subexpr = ct_grammar_parens(p, docerr);
+            part.data.subexpr = ct_grammar_parens(p);
             if (part.data.subexpr == 0) {
-                ct_document_set_error(docerr, "expected a subexpression", ct_parser_current_range(p));
-                return ct_astnode_new_error(p, *docerr);
+                return ct_astnode_new_error(p, ct_parser_make_error(
+                    p, "expected a subexpression", ct_parser_current_range(p)
+                ));
             }
             _ct_exprpart_array_append(&parts_array, part);
             break;
@@ -301,9 +320,10 @@ ASTNode* ct_grammar_operator_expr(Parser *p, DocumentError *docerr) {
     IFDEBUG( _ct_print_exprpart_array(&parts_array, parts_array.size); )
 
     if (parts_array.size != 1) {
+        DocumentError docerr = ct_parser_make_error(p, "", (DocumentRange) { 0 });
         if (parts_array.size > 0) {
             ct_document_set_error(
-                docerr,
+                &docerr,
                 "invalid expression",
                 ct_document_range_span(
                     _ct_exprpart_get_range(&parts_array.content[0]),
@@ -313,14 +333,14 @@ ASTNode* ct_grammar_operator_expr(Parser *p, DocumentError *docerr) {
         } else {
             Token *next = ct_parser_peek(p);
             if (next != 0) {
-                ct_document_set_error(docerr, "expected expression, found nothing", next->range);
+                ct_document_set_error(&docerr, "expected expression, found nothing", next->range);
             } else {
-                ct_document_set_error(docerr, "empty expression ??", ct_parser_current_range(p));
+                ct_document_set_error(&docerr, "empty expression ??", ct_parser_current_range(p));
             }
         }
 
         _ct_exprpart_array_destroy(&parts_array);
-        return ct_astnode_new_error(p, *docerr);
+        return ct_astnode_new_error(p, docerr);
     }
 
     ASTNode *result = 0;
@@ -331,13 +351,14 @@ ASTNode* ct_grammar_operator_expr(Parser *p, DocumentError *docerr) {
             break;
 
         case ExprPartType_OP:
-            ct_document_set_error(docerr, "invalid expression", parts_array.content[0].data.op->range);
-            result = ct_astnode_new_error(p, *docerr);
+            result = ct_astnode_new_error(p, ct_parser_make_error(
+                p, "invalid expression", parts_array.content[0].data.op->range
+            ));
             break;
 
         default:
             die("[INTERNAL] bad value in parts_array.content[0].type");
-            result = ct_astnode_new_error(p, *docerr);
+            result = ct_astnode_new_error(p, (DocumentError) { 0 });
             break;
     }
 
@@ -345,28 +366,25 @@ ASTNode* ct_grammar_operator_expr(Parser *p, DocumentError *docerr) {
     return result;
 }
 
-ASTNode* ct_grammar_parens(Parser *p, DocumentError *docerr) {
+ASTNode* ct_grammar_parens(Parser *p) {
     Token *opening = ct_parser_consume_if(p, TOKEN_OPEN_PAREN);
     if (opening == 0) {
-        ct_document_set_error(docerr, "expected '('", ct_parser_current_range(p));
-        return ct_astnode_new_error(p, *docerr);
+        return ct_astnode_new_error(p, ct_parser_make_error(p, "expected '('", ct_parser_current_range(p)));
     }
 
-    ASTNode *expr = ct_grammar_expr(p, docerr);
+    ASTNode *expr = ct_grammar_expr(p);
     if (expr == 0) {
-        ct_document_set_error(docerr, "expected expression after '('", opening->range);
-        return ct_astnode_new_error(p, *docerr);
+        return ct_astnode_new_error(p, ct_parser_make_error(p, "expected expression after '('", opening->range));
     }
 
     Token *closing = ct_parser_consume_if(p, TOKEN_CLOSE_PAREN);
     if (closing == 0) {
-        ct_document_set_error(docerr, "expected ')'", expr->range);
-        return ct_astnode_new_error(p, *docerr);
+        return ct_astnode_new_error(p, ct_parser_make_error(p, "expected ')'", expr->range));
     }
 
     return expr;
 }
 
-ASTNode* ct_grammar_expr(Parser *p, DocumentError *docerr) {
-    return ct_grammar_operator_expr(p, docerr);
+ASTNode* ct_grammar_expr(Parser *p) {
+    return ct_grammar_operator_expr(p);
 }

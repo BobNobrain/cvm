@@ -37,7 +37,7 @@ struct Arena {
 
 const size_t _util_arena_initial_regions_capacity = 32;
 
-#define DEBUG_ARENA 1
+#define DEBUG_ARENA 0
 
 #if DEBUG_ARENA
 #define IFDEBUG(S) S

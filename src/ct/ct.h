@@ -41,45 +41,8 @@ typedef struct DocumentError {
 extern void ct_document_set_error(DocumentError *error, char *c_msg, DocumentRange location);
 extern void ct_document_print_error(DocumentError error);
 
-
-/** Tokenizer */
-#define TOKEN_LIST(X) \
-    X(TOKEN_IDENT, , ) \
-    X(TOKEN_INT_LITERAL, int, intl) \
-    X(TOKEN_FLOAT_LITERAL, float, floatl) \
-    X(TOKEN_BOOL_LITERAL, bool, booll) \
-    X(TOKEN_OPERATOR, String, op) \
-    X(TOKEN_OPEN_PAREN, , ) \
-    X(TOKEN_CLOSE_PAREN, , )
-
-#define TOKEN_LIST_X(CONST_NAME, DATA_TYPE, FIELD_NAME) CONST_NAME,
-typedef enum {
-    TOKEN_LIST(TOKEN_LIST_X)
-
-    TOKEN_INVALID
-} TokenType;
-#undef TOKEN_LIST_X
-
-#define TOKEN_LIST_X(CONST_NAME, DATA_TYPE, FIELD_NAME) DATA_TYPE FIELD_NAME;
-typedef struct {
-    TokenType type;
-    DocumentRange range;
-    union {
-        TOKEN_LIST(TOKEN_LIST_X)
-    } data;
-} Token;
-#undef TOKEN_LIST_X
-
-typedef struct Tokenizer {
-    Token *tokens;
-    size_t size;
-    size_t capacity;
-    Arena *arena;
-} Tokenizer;
-
-extern void ct_tokenizer_init(Tokenizer *t, Arena *arena);
-extern error ct_tokenizer_run(Tokenizer *t, String source, DocumentError *err);
-extern void ct_tokenizer_print(Tokenizer *t);
+ARRAY_DECL(DocumentError)
+ARRAY_METHODS_DECL(ct_err_array, DocumentError)
 
 
 /** Operators */
@@ -106,13 +69,69 @@ SLICE_DECL(OperatorDecl)
 SLICE_METHODS_DECL(ct_opdeclslice, OperatorDecl)
 
 
+/** Language configuration */
+typedef struct LangConfig {
+    OperatorDeclSlice optable;
+    String allowed_ident_chars;
+    String allowed_operator_chars;
+} LangConfig;
+
+extern LangConfig ct_langconfig_create();
+extern String ct_langconfig_validate(const LangConfig cfg);
+
+
+/** Tokenizer */
+#define TOKEN_LIST(X) \
+    X(TOKEN_IDENT, String, ident) \
+    X(TOKEN_INT_LITERAL, int, intl) \
+    X(TOKEN_FLOAT_LITERAL, float, floatl) \
+    X(TOKEN_BOOL_LITERAL, bool, booll) \
+    X(TOKEN_OPERATOR, String, op) \
+    X(TOKEN_OPEN_PAREN, , ) \
+    X(TOKEN_CLOSE_PAREN, , )
+
+#define TOKEN_LIST_X(CONST_NAME, DATA_TYPE, FIELD_NAME) CONST_NAME,
+typedef enum {
+    TOKEN_LIST(TOKEN_LIST_X)
+
+    TOKEN_INVALID
+} TokenType;
+#undef TOKEN_LIST_X
+
+#define TOKEN_LIST_X(CONST_NAME, DATA_TYPE, FIELD_NAME) DATA_TYPE FIELD_NAME;
+typedef struct {
+    TokenType type;
+    DocumentRange range;
+    union {
+        TOKEN_LIST(TOKEN_LIST_X)
+    } data;
+} Token;
+#undef TOKEN_LIST_X
+
+ARRAY_DECL(Token)
+ARRAY_METHODS_DECL(ct_tokenarray, Token)
+
+SLICE_DECL(Token)
+SLICE_METHODS_DECL(ct_tokenslice, Token)
+
+SLICE_ARRAY_METHODS_DECL(ct_tokenarray, Token)
+
+typedef struct Tokenizer {
+    TokenArray tokens;
+} Tokenizer;
+
+extern void ct_tokenizer_init(Tokenizer *t, Arena *arena);
+extern void ct_tokenizer_run(Tokenizer *t, String source, LangConfig config, DocumentErrorArray *errors);
+extern void ct_tokenizer_print(Tokenizer *t);
+
+
 /** Language AST */
 #define AST_TYPES_LIST(X) \
     X(AST_TYPE_SYNTAX_ERROR, String, error) \
     X(AST_TYPE_LINT, int, lint) \
     X(AST_TYPE_LFLOAT, float, lfloat) \
     X(AST_TYPE_LBOOL, bool, lbool) \
-    X(AST_TYPE_IDENT, , ) \
+    X(AST_TYPE_IDENT, String, ident) \
     X(AST_TYPE_BINOP, , ) \
     X(AST_TYPE_UNOP, , )
 
@@ -145,33 +164,43 @@ extern bool ct_astnode_is_error(ASTNode *node);
 
 /** The parser itself */
 struct Parser {
+    // language parsing and tokenizing config
+    LangConfig config;
+    // allocator
     Arena *arena;
-
-    Token *input_start;
-    Token *input_next;
-    size_t input_size;
-
+    // program source
+    String source;
+    // remaining tokens to parse
+    TokenSlice input;
+    // tokenizer result
+    TokenSlice input_original;
+    // AST root
     ASTNode *root;
-
-    // language settings
-    OperatorDeclSlice optable;
+    // tokenizing and parsing errors
+    DocumentErrorArray errors;
 };
 
-typedef ASTNode* (*ParserGrammar)(Parser*, DocumentError*);
+typedef ASTNode* (*ParserGrammar)(Parser*);
+
+typedef struct ParserRewindPoint {
+    TokenSlice input;
+} ParserRewindPoint;
 
 extern Parser *ct_parser_new(Arena *arena);
-extern void ct_parser_configure_operators(Parser *p, OperatorDeclSlice optable);
-extern error ct_parser_parse(Parser *p, String source, ParserGrammar grammar, DocumentError *error);
+extern String ct_parser_configure(Parser *p, LangConfig config);
+extern void ct_parser_parse(Parser *p, String source, ParserGrammar grammar);
 extern Token *ct_parser_consume(Parser *p);
 extern Token *ct_parser_peek(Parser *p);
 extern Token *ct_parser_consume_if(Parser *p, TokenType type);
-extern void ct_parser_rewind(Parser *p, Token *to);
+extern void ct_parser_rewind(Parser *p, ParserRewindPoint to);
 extern void ct_parser_rewind_n(Parser *p, int n);
 extern DocumentRange ct_parser_current_range(Parser *p);
+extern void ct_parser_append_error(Parser *p, char* msg, DocumentRange range);
+extern DocumentError ct_parser_make_error(Parser *p, char* msg, DocumentRange range);
 
 
 /** Grammars */
-extern ASTNode* ct_grammar_expr(Parser *p, DocumentError *err);
+extern ASTNode* ct_grammar_expr(Parser *p);
 
 
 /** Hiding all internal macros */

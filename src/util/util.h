@@ -66,14 +66,19 @@ typedef struct {
     size_t size;
 } String;
 
+#define STR_EMPTY (String) { 0 }
+#define STR_CONST(C_STR) (String) { .content = C_STR, .size = sizeof(C_STR) - 1 }
+
 /** Wraps a zero-terminated C string into String struct (points to the same underlying data) */
 extern String str_wrap(char *c_str);
 extern String str_substring(String source, size_t start, size_t end);
+extern bool str_is_empty(String s);
 extern void str_assign(String *into, String value);
 extern size_t str_compc(String str, const char* c_str, size_t n);
 extern bool str_eqc(String str, const char* c_str);
 extern bool str_eq(String s1, String s2);
-size_t str_parse_uint_dec(String str, unsigned int *into); // TODO: shouldn't be here?
+extern size_t str_parse_uint_dec(String str, unsigned int *into); // TODO: shouldn't be here?
+extern int str_index_of(String str, char needle);
 
 /** to use in printf and alike:
     printf("the string is '" STR_FMT "'!", STR_FMT_VAL(my_string));
@@ -115,7 +120,7 @@ extern String strb_render(StringBuilder *sb);
     }                                                                               \
     T_ELEM##Slice PREFIX##_slice(T_ELEM##Slice slice, size_t start, size_t end) {   \
         T_ELEM##Slice result = { .content = 0, .size = 0 };                         \
-        if (start >= slice.size || end <= start) { return result; }                  \
+        if (start > slice.size || end < start) { return result; }                   \
         result.content = &slice.content[start];                                     \
         result.size = end - start;                                                  \
         return result;                                                              \
@@ -134,28 +139,33 @@ extern String strb_render(StringBuilder *sb);
 /** Dynamic arrays */
 #define ARRAY_DECL(T_ELEM) \
     typedef struct {        \
+        Arena *arena;       \
         T_ELEM *content;    \
         size_t size;        \
         size_t capacity;    \
     } T_ELEM##Array;
 
 #define ARRAY_METHODS_DECL(PREFIX, T_ELEM) \
-    extern void PREFIX##_init(T_ELEM##Array *arr, size_t initial_capacity); \
-    extern void PREFIX##_append(T_ELEM##Array *arr, T_ELEM element);        \
-    extern size_t PREFIX##_cut(T_ELEM##Array *arr, size_t start, size_t n); \
-    extern T_ELEM *PREFIX##_at(T_ELEM##Array *arr, size_t at);              \
+    extern void PREFIX##_init(T_ELEM##Array *arr, size_t initial_capacity, Arena *arena);   \
+    extern void PREFIX##_append(T_ELEM##Array *arr, T_ELEM element);                        \
+    extern size_t PREFIX##_cut(T_ELEM##Array *arr, size_t start, size_t n);                 \
+    extern T_ELEM *PREFIX##_at(T_ELEM##Array *arr, size_t at);                              \
     extern void PREFIX##_destroy(T_ELEM##Array *arr);
 
 #define ARRAY_METHODS_IMPL(PREFIX, T_ELEM) \
-    void PREFIX##_init(T_ELEM##Array *arr, size_t initial_capacity) {       \
-        if (initial_capacity == 0) { initial_capacity = 8; }                \
-        arr->content = malloc_or_die(initial_capacity * sizeof(T_ELEM));    \
-        arr->size = 0; arr->capacity = initial_capacity;                    \
+    void PREFIX##_init(T_ELEM##Array *arr, size_t icap, Arena *arena) {     \
+        if (icap == 0) { icap = 8; }                                        \
+        arr->content = arena_alloc(arena, icap * sizeof(T_ELEM));           \
+        arr->arena = arena; arr->size = 0; arr->capacity = icap;            \
     }                                                                       \
     void PREFIX##_append(T_ELEM##Array *arr, T_ELEM element) {              \
         if (arr->size >= arr->capacity) {                                   \
             size_t new_cap = arr->capacity + MIN(arr->capacity * 2, 4096);  \
-            arr->content = realloc_or_die(arr->content, new_cap);           \
+            arr->content = arena_realloc(                                   \
+                arr->arena, arr->content,                                   \
+                arr->capacity * sizeof(T_ELEM), new_cap * sizeof(T_ELEM)    \
+            );                                                              \
+            arr->capacity = new_cap;                                        \
         }                                                                   \
         arr->content[arr->size] = element; arr->size += 1;                  \
     }                                                                       \
@@ -174,8 +184,10 @@ extern String strb_render(StringBuilder *sb);
         return &arr->content[at];                                           \
     }                                                                       \
     void PREFIX##_destroy(T_ELEM##Array *arr) {                             \
-        if (arr->content != 0) { free(arr->content); }                      \
-        arr->content = 0; arr->size = 0; arr->capacity = 0;                 \
+        if (arr->content != 0 && arr->arena == arena_global()) {            \
+            free(arr->content);                                             \
+        }                                                                   \
+        *arr = (T_ELEM##Array) { 0 };                                       \
     }
 
 /** Methods for when you have both XArray and XSlice */
@@ -183,12 +195,15 @@ extern String strb_render(StringBuilder *sb);
     extern T_ELEM##Slice PREFIX##_seal(T_ELEM##Array *arr);
 
 #define SLICE_ARRAY_METHODS_IMPL(PREFIX, T_ELEM) \
-    T_ELEM##Slice PREFIX##_seal(T_ELEM##Array *arr) {           \
-        T_ELEM##Slice result = {                                \
-            .content = realloc_or_die(arr->content, arr->size), \
-            .size = arr->size                                   \
-        };                                                      \
-        PREFIX##_destroy(arr); return result;                   \
+    T_ELEM##Slice PREFIX##_seal(T_ELEM##Array *arr) {                       \
+        T_ELEM##Slice result = {                                            \
+            .content = arena_realloc(                                       \
+                arr->arena, arr->content,                                   \
+                arr->capacity * sizeof(T_ELEM), arr->size * sizeof(T_ELEM)  \
+            ),                                                              \
+            .size = arr->size                                               \
+        };                                                                  \
+        PREFIX##_destroy(arr); return result;                               \
     }
 
 #endif

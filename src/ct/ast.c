@@ -57,16 +57,16 @@ void ct_astnode_print(ASTNode *node, size_t indent) {
         printf("ERROR: " STR_FMT, STR_FMT_VAL(node->data.error));
         break;
     case AST_TYPE_LINT:
-        printf("INT %d", node->base->data.intl);
+        printf("INT %d", node->data.lint);
         break;
     case AST_TYPE_LFLOAT:
-        printf("FLOAT %f", node->base->data.floatl);
+        printf("FLOAT %f", node->data.lfloat);
         break;
     case AST_TYPE_LBOOL:
-        printf("BOOL %d", node->base->data.booll);
+        printf("BOOL %d", node->data.lbool);
         break;
     case AST_TYPE_IDENT:
-        printf("IDENT");
+        printf("IDENT " STR_FMT, STR_FMT_VAL(node->data.ident));
         break;
     case AST_TYPE_BINOP:
         printf("BINOP " STR_FMT, STR_FMT_VAL(node->base->data.op));

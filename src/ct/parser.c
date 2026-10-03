@@ -6,102 +6,122 @@ Parser *ct_parser_new(Arena *arena) {
     Parser *parser = arena_alloc(arena, sizeof(Parser));
     parser->arena = arena;
 
-    parser->input_start = 0;
-    parser->input_next = 0;
-    parser->input_size = 0;
+    parser->input = (TokenSlice) { 0 };
     parser->root = 0;
+    ct_err_array_init(&parser->errors, 8, parser->arena);
 
     return parser;
 }
 
 Token *ct_parser_consume(Parser *p) {
-    if (p->input_next >= &p->input_start[p->input_size]) {
+    if (p->input.size == 0) {
         return 0;
     }
 
-    Token *result = p->input_next;
-    p->input_next += 1;
+    Token *result = &p->input.content[0];
+    p->input = ct_tokenslice_slice(p->input, 1, p->input.size);
     return result;
 }
 Token *ct_parser_peek(Parser *p) {
-    if (p->input_next >= &p->input_start[p->input_size]) {
+    if (p->input.size == 0) {
         return 0;
     }
 
-    Token *result = p->input_next;
-    return result;
+    return &p->input.content[0];
 }
 Token *ct_parser_consume_if(Parser *p, TokenType type) {
-    if (p->input_next >= &p->input_start[p->input_size]) {
+    if (p->input.size == 0) {
         return 0;
     }
 
-    Token *result = p->input_next;
+    Token *result = &p->input.content[0];
     if (result->type != type) {
         return 0;
     }
 
-    p->input_next += 1;
+    p->input = ct_tokenslice_slice(p->input, 1, p->input.size);
     return result;
 }
-void ct_parser_rewind(Parser *p, Token *to) {
-    p->input_next = to;
+void ct_parser_rewind(Parser *p, ParserRewindPoint to) {
+    p->input = to.input;
 }
 void ct_parser_rewind_n(Parser *p, int n) {
-    p->input_next += n;
-    if (p->input_next < p->input_start) {
-        p->input_next = p->input_start;
-    } else if (p->input_next >= &p->input_start[p->input_size]) {
-        p->input_next = &p->input_start[p->input_size];
+    while (n < 0 && p->input_original.content != p->input.content) {
+        p->input.content -= 1;
+        p->input.size += 1;
+        n += 1;
     }
 }
 DocumentRange ct_parser_current_range(Parser *p) {
-    if (p->input_start == 0 || p->input_size == 0) {
+    if (p->input.size == 0) {
         return (DocumentRange) { 0 };
     }
 
-    Token *current = p->input_next;
-
-    if (p->input_next >= &p->input_start[p->input_size]) {
-        current = &p->input_start[p->input_size - 1];
-    } else if (p->input_next == 0) {
-        current = p->input_start;
-    }
-
-    return current->range;
+    return p->input.content[0].range;
 }
 
-error ct_parser_parse(Parser *p, String source, ParserGrammar grammar, DocumentError *docerr) {
-    printf("SOURCE: " STR_FMT "\n", STR_FMT_VAL(source));
+void _ct_parser_collect_errors(Parser *p, ASTNode *node) {
+    if (node == 0) {
+        ct_parser_append_error(p, "null node found", (DocumentRange) { 0 });
+        return;
+    }
 
-    ERR_DECL
+    if (node->type == AST_TYPE_SYNTAX_ERROR) {
+        ct_err_array_append(&p->errors, (DocumentError) {
+            .source = p->source,
+            .location = node->range,
+            .message = node->data.error
+        });
+    }
+
+    for (size_t i = 0; i < node->n_children; i++) {
+        _ct_parser_collect_errors(p, node->children[i]);
+    }
+}
+
+void ct_parser_parse(Parser *p, String source, ParserGrammar grammar) {
+    printf("SOURCE: " STR_FMT "\n", STR_FMT_VAL(source));
+    p->source = source;
+
     Tokenizer t;
     ct_tokenizer_init(&t, p->arena);
-    ERR_PASS( ct_tokenizer_run(&t, source, docerr) )
+    ct_tokenizer_run(&t, source, p->config, &p->errors);
 
     printf("TOKENS:\n");
     ct_tokenizer_print(&t);
     printf("\n");
 
-    p->input_start = t.tokens;
-    p->input_size = t.size;
-    p->input_next = p->input_start;
+    TokenSlice tokens = ct_tokenarray_seal(&t.tokens);
+    p->input = tokens;
 
-    p->root = grammar(p, docerr);
+    p->root = grammar(p);
 
     printf("AST:\n");
     ct_astnode_print(p->root, 0);
 
-    if (ct_astnode_is_error(p->root)) {
-        return E_BAD_DATA;
-    }
+    _ct_parser_collect_errors(p, p->root);
 
-    return E_NONE;
+    if (p->input.size > 0) {
+        ct_parser_append_error(p, "parser stopped prematurely", p->input.content[0].range);
+    }
 }
 
-void ct_parser_configure_operators(Parser *p, OperatorDeclSlice optable) {
-    // TODO: validate the table:
-    // - no mixing unary/binary and associativity on the same priority level
-    // - must be sorted by priority, desc
-    p->optable = optable;
+String ct_parser_configure(Parser *p, LangConfig config) {
+    String errmsg = ct_langconfig_validate(config);
+    if (!str_is_empty(errmsg)) {
+        return errmsg;
+    }
+
+    p->config = config;
+    return STR_EMPTY;
+}
+
+void ct_parser_append_error(Parser *p, char* msg, DocumentRange range) {
+    DocumentError e = { .source = p->source, .location = range, .message = str_wrap(msg) };
+    ct_err_array_append(&p->errors, e);
+}
+
+DocumentError ct_parser_make_error(Parser *p, char* msg, DocumentRange range) {
+    DocumentError e = { .source = p->source, .location = range, .message = str_wrap(msg) };
+    return e;
 }

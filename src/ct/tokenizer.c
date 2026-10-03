@@ -7,23 +7,23 @@
 #include "ct_int.h"
 
 ARRAY_METHODS_IMPL(ct_tokenarray, Token)
+SLICE_METHODS_IMPL(ct_tokenslice, Token)
+SLICE_ARRAY_METHODS_IMPL(ct_tokenarray, Token)
 
 void ct_tokenizer_init(Tokenizer *t, Arena *arena) {
-    t->size = 0;
-    t->capacity = 128;
-    t->tokens = arena_alloc(arena, t->capacity * sizeof(Token));
-    t->arena = arena;
+    ct_tokenarray_init(&t->tokens, 128, arena);
 }
 
 void ct_tokenizer_push_token(Tokenizer *t, Token token) {
-    if (t->size >= t->capacity) {
-        size_t old_cap = t->capacity;
-        t->capacity += 128;
-        t->tokens = arena_realloc(t->arena, t->tokens, old_cap, t->capacity);
+    if (token.type == TOKEN_INVALID &&
+        t->tokens.size > 0 &&
+        t->tokens.content[t->tokens.size - 1].type == TOKEN_INVALID
+    ) {
+        t->tokens.content[t->tokens.size - 1].range.end = token.range.end;
+        return;
     }
 
-    memcpy(&t->tokens[t->size], &token, sizeof(token));
-    t->size += 1;
+    ct_tokenarray_append(&t->tokens, token);
 }
 
 size_t ct_tokenizer_skip_ws(String source, DocumentPos *cursor) {
@@ -48,7 +48,9 @@ size_t ct_tokenizer_skip_ws(String source, DocumentPos *cursor) {
     return source.size;
 }
 
-size_t ct_tokenizer_read_number(String source, Token *into) {
+size_t ct_tokenizer_read_number(String source, Token *into, LangConfig config) {
+    (void)config;
+
     bool point_met = false;
     size_t i = 0;
 
@@ -70,6 +72,12 @@ size_t ct_tokenizer_read_number(String source, Token *into) {
         return 0;
     }
 
+    if (point_met && i == 1) {
+        // a single point is not a valid number literal
+        into->type = TOKEN_INVALID;
+        return i;
+    }
+
     if (point_met) {
         into->type = TOKEN_FLOAT_LITERAL;
     } else {
@@ -79,7 +87,7 @@ size_t ct_tokenizer_read_number(String source, Token *into) {
     return i;
 }
 
-size_t ct_tokenizer_read_ident(String source, Token *into) {
+size_t ct_tokenizer_read_ident(String source, Token *into, LangConfig config) {
     size_t i = 0;
 
     for (; i < source.size; i++) {
@@ -91,7 +99,10 @@ size_t ct_tokenizer_read_ident(String source, Token *into) {
         if ('a' <= next && next <= 'z') {
             continue;
         }
-        if (next == '_') {
+        if ('0' <= next && next <= '9') {
+            continue;
+        }
+        if (str_index_of(config.allowed_ident_chars, next) != -1) {
             continue;
         }
 
@@ -106,30 +117,11 @@ size_t ct_tokenizer_read_ident(String source, Token *into) {
     return i;
 }
 
-size_t ct_tokenizer_read_op(String source, Token *into) {
+size_t ct_tokenizer_read_op(String source, Token *into, LangConfig config) {
     size_t i = 0;
     for (; i < source.size; i++) {
         char next = source.content[i];
-        bool ok = false;
-        switch (next) {
-        case '+':
-        case '-':
-        case '*':
-        case '/':
-        case '%':
-        case '=':
-        case '<':
-        case '>':
-        case '!':
-        case '&':
-        case '|':
-        case '^':
-        case '~':
-            ok = true;
-            break;
-        }
-
-        if (!ok) {
+        if (str_index_of(config.allowed_operator_chars, next) == -1) {
             break;
         }
     }
@@ -142,7 +134,9 @@ size_t ct_tokenizer_read_op(String source, Token *into) {
     return i;
 }
 
-size_t ct_tokenizer_read_paren(String source, Token *into) {
+size_t ct_tokenizer_read_paren(String source, Token *into, LangConfig config) {
+    (void)config;
+
     if (source.size == 0) {
         return 0;
     }
@@ -163,7 +157,7 @@ size_t ct_tokenizer_read_paren(String source, Token *into) {
     return 1;
 }
 
-bool ct_tokenizer_parse_token(Token *token, String source, DocumentError *error) {
+void ct_tokenizer_parse_token(Token *token, String source, DocumentErrorArray *errors) {
     String token_content = ct_document_substring(source, token->range);
 
     switch (token->type) {
@@ -174,6 +168,8 @@ bool ct_tokenizer_parse_token(Token *token, String source, DocumentError *error)
         } else if (str_eqc(token_content, "false")) {
             token->type = TOKEN_BOOL_LITERAL;
             token->data.booll = false;
+        } else {
+            token->data.ident = token_content;
         }
         break;
 
@@ -182,8 +178,12 @@ bool ct_tokenizer_parse_token(Token *token, String source, DocumentError *error)
         size_t n_chars = str_parse_uint_dec(token_content, &parsed);
 
         if (n_chars != token_content.size) {
-            ct_document_set_error(error, "failed to parse an integer", token->range);
-            return false;
+            ct_err_array_append(errors, (DocumentError) {
+                .source = source,
+                .message = STR_CONST("failed to parse an integer"),
+                .location = token->range
+            });
+            return;
         }
 
         token->data.intl = (int) parsed;
@@ -197,8 +197,12 @@ bool ct_tokenizer_parse_token(Token *token, String source, DocumentError *error)
         size_t n_chars_frac = str_parse_uint_dec(frac_str, &frac);
 
         if (n_chars_whole + n_chars_frac + 1 != token_content.size) {
-            ct_document_set_error(error, "failed to parse a float", token->range);
-            return false;
+            ct_err_array_append(errors, (DocumentError) {
+                .source = source,
+                .message = STR_CONST("failed to parse a float"),
+                .location = token->range
+            });
+            return;
         }
 
         unsigned int frac_size = 1;
@@ -211,16 +215,25 @@ bool ct_tokenizer_parse_token(Token *token, String source, DocumentError *error)
 
     case TOKEN_OPERATOR:
         token->data.op = ct_document_substring(source, token->range);
+        break;
+
+    case TOKEN_INVALID:
+        ct_err_array_append(errors, (DocumentError) {
+            .source = source,
+            .message = STR_CONST("invalid token"),
+            .location = token->range
+        });
+        break;
 
     default:
-        return true;
+        return;
     }
 
-    return true;
+    return;
 }
 
 #define TRY_TOKEN_READER(READER) \
-    consumed = READER(rest, &current); \
+    consumed = READER(rest, &current, config); \
     if (consumed > 0) { \
         current.range = ct_document_range(cursor, consumed); \
         ct_tokenizer_push_token(t, current); \
@@ -229,7 +242,7 @@ bool ct_tokenizer_parse_token(Token *token, String source, DocumentError *error)
         continue; \
     }
 
-error ct_tokenizer_run(Tokenizer *t, String source, DocumentError *docerr) {
+void ct_tokenizer_run(Tokenizer *t, String source, LangConfig config, DocumentErrorArray *errors) {
     String rest = source;
     size_t consumed;
     Token current;
@@ -250,16 +263,17 @@ error ct_tokenizer_run(Tokenizer *t, String source, DocumentError *docerr) {
             continue;
         }
 
-        return E_BAD_DATA;
+        // cannot consume the rest, must be invalid input
+        current.type = TOKEN_INVALID;
+        current.range = ct_document_range(cursor, 1);
+        ct_tokenizer_push_token(t, current);
+        str_assign(&rest, str_substring(rest, 1, rest.size));
+        ct_document_pos_track(&cursor, 1);
     }
 
-    for (size_t i = 0; i < t->size; i++) {
-        if (!ct_tokenizer_parse_token(&t->tokens[i], source, docerr)) {
-            return E_BAD_DATA;
-        }
+    for (size_t i = 0; i < t->tokens.size; i++) {
+        ct_tokenizer_parse_token(&t->tokens.content[i], source, errors);
     }
-
-    return E_NONE;
 }
 
 void ct_token_to_string(Token token, StringBuilder *sb) {
@@ -268,32 +282,36 @@ void ct_token_to_string(Token token, StringBuilder *sb) {
 
     switch (token.type) {
     case TOKEN_IDENT:
-        strb_appendc(sb, "<ident>");
+        strb_appendc(sb, "<ident> ");
         break;
     case TOKEN_INT_LITERAL:
-        snprintf(buffer, buffer_size, "<int:%d>", token.data.intl);
+        snprintf(buffer, buffer_size, "<int:%d> ", token.data.intl);
         strb_appendc(sb, buffer);
         break;
     case TOKEN_FLOAT_LITERAL:
-        snprintf(buffer, buffer_size, "<float:%f>", token.data.floatl);
+        snprintf(buffer, buffer_size, "<float:%f> ", token.data.floatl);
         strb_appendc(sb, buffer);
         break;
     case TOKEN_BOOL_LITERAL:
         if (token.data.booll) {
-            strb_appendc(sb, "<true>");
+            strb_appendc(sb, "<true> ");
         } else {
-            strb_appendc(sb, "<false>");
+            strb_appendc(sb, "<false> ");
         }
         break;
     case TOKEN_OPERATOR:
-        snprintf(buffer, buffer_size, "<operator:" STR_FMT ">", STR_FMT_VAL(token.data.op));
+        snprintf(buffer, buffer_size, "<operator:" STR_FMT "> ", STR_FMT_VAL(token.data.op));
         strb_appendc(sb, buffer);
         break;
     case TOKEN_OPEN_PAREN:
-        strb_appendc(sb, "(");
+        strb_appendc(sb, "( ");
         break;
     case TOKEN_CLOSE_PAREN:
-        strb_appendc(sb, ")");
+        strb_appendc(sb, ") ");
+        break;
+
+    case TOKEN_INVALID:
+        strb_appendc(sb, "<?>");
         break;
 
     default:
@@ -303,10 +321,10 @@ void ct_token_to_string(Token token, StringBuilder *sb) {
 }
 
 void ct_tokenizer_print(Tokenizer *t) {
-    StringBuilder *sb = strb_new(t->arena, 128);
+    StringBuilder *sb = strb_new(t->tokens.arena, 128);
 
-    for (size_t i = 0; i < t->size; i++) {
-        ct_token_to_string(t->tokens[i], sb);
+    for (size_t i = 0; i < t->tokens.size; i++) {
+        ct_token_to_string(t->tokens.content[i], sb);
     }
 
     String result = strb_render(sb);

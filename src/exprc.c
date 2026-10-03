@@ -6,44 +6,31 @@
     { .op = str_wrap(OP), .type = OperatorType_##TYPE, .priority = P }
 
 int main() {
-    ERR_DECL
-    char TEST_EXPR[] = "a + b < c + b == -10 && 3 / 2 <> 1";
+    char TEST_EXPR[] = "a + b < c + (b___ ~~ 11) == -10 && 3 / 2 <> 1 ..";
     String source = str_wrap(TEST_EXPR);
 
-    OperatorDecl optable[] = {
-        OPERATOR("!",  UNARY_RIGHT,   150) ,
-        OPERATOR("-",  UNARY_RIGHT,   150) ,
-        OPERATOR("+",  UNARY_RIGHT,   150) ,
-
-        OPERATOR("^",  BINARY_RIGHT,   90) ,
-        OPERATOR("*",  BINARY_LEFT,    80) ,
-        OPERATOR("/",  BINARY_LEFT,    80) ,
-        OPERATOR("%",  BINARY_NOASSOC, 80) ,
-        OPERATOR("+",  BINARY_LEFT,    70) ,
-        OPERATOR("-",  BINARY_LEFT,    70) ,
-        OPERATOR("<",  BINARY_NOASSOC, 60) ,
-        OPERATOR(">",  BINARY_NOASSOC, 60) ,
-        OPERATOR(">=", BINARY_NOASSOC, 60) ,
-        OPERATOR("<=", BINARY_NOASSOC, 60) ,
-        OPERATOR("==", BINARY_LEFT,    50) ,
-        OPERATOR("<>", BINARY_LEFT,    50) ,
-        OPERATOR("&&", BINARY_LEFT,    40) ,
-        OPERATOR("||", BINARY_LEFT,    40)
-    };
-    OperatorDeclSlice optable_slice = ct_opdeclslice_of_const(optable, sizeof(optable) / sizeof(OperatorDecl));
+    LangConfig language = ct_langconfig_create();
 
     Arena *parser_arena = arena_new(32768);
     Parser *p = ct_parser_new(parser_arena);
-    ct_parser_configure_operators(p, optable_slice);
-    DocumentError docerr = { .source = source };
 
-    err = ct_parser_parse(p, source, ct_grammar_expr, &docerr);
-    if (ERR_ISSET) {
-        printf("parse failed: ");
-        ct_document_print_error(docerr);
-        return -1;
+    String config_err = ct_parser_configure(p, language);
+    if (!str_is_empty(config_err)) {
+        printf("bad language config: " STR_FMT "\n", STR_FMT_VAL(config_err));
+        return EXIT_FAILURE;
+    }
+
+    ct_parser_parse(p, source, ct_grammar_expr);
+
+    if (p->errors.size > 0) {
+        printf("\nparse failed: \n");
+        for (size_t i = 0; i < p->errors.size; i++) {
+            ct_document_print_error(p->errors.content[i]);
+        }
+
+        return EXIT_FAILURE;
     }
 
     arena_destroy(parser_arena);
-    return 0;
+    return EXIT_SUCCESS;
 }

@@ -1,17 +1,19 @@
 #include <string.h>
 #include "util_int.h"
 
-const String EMPTY_STRING = { .content = 0, .size = 0 };
-
 String str_wrap(char *c_str) {
     size_t size = strlen(c_str);
     String result = { .content = c_str, .size = size };
     return result;
 }
 
+bool str_is_empty(String s) {
+    return s.size == 0;
+}
+
 String str_substring(String source, size_t start, size_t end) {
     if (start > source.size) {
-        return EMPTY_STRING;
+        return STR_EMPTY;
     }
     if (end > source.size) {
         end = source.size;
@@ -79,6 +81,16 @@ size_t str_parse_uint_dec(String str, unsigned int *into) {
     }
 
     return str.size;
+}
+
+int str_index_of(String str, char needle) {
+    for (size_t i = 0; i < str.size; i++) {
+        if (str.content[i] == needle) {
+            return (int) i;
+        }
+    }
+
+    return -1;
 }
 
 typedef struct {

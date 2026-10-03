@@ -3,6 +3,8 @@
 #include "util.h"
 #include "ct_int.h"
 
+ARRAY_METHODS_IMPL(ct_err_array, DocumentError)
+
 DocumentPos ct_document_pos_zero() {
     DocumentPos zero = {
         .caret = 0,

@@ -3,7 +3,4 @@
 
 #include "ct.h"
 
-ARRAY_DECL(Token)
-ARRAY_METHODS_DECL(ct_tokenarray, Token)
-
 #endif
