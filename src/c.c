@@ -9,7 +9,7 @@ int main() {
     FILE *input = stdin;
 
     Arena *arena = arena_new(65536);
-    arena_set_max_regions(arena, 8); // 512 KiB memory limig
+    arena_set_max_regions(arena, 8); // 512 KiB memory limit
 
     StringBuilder *text_builder = strb_new(arena, 16384);
     err = strb_read_from_stream(text_builder, input);
@@ -37,6 +37,7 @@ int main() {
             ct_document_print_error(p->errors.content[i]);
         }
 
+        arena_destroy(arena);
         return EXIT_FAILURE;
     }
 

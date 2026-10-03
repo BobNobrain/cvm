@@ -38,19 +38,19 @@ void _ct_skip_until_assignment_again(Parser *p) {
 ASTNode* _ct_grammar_assignment(Parser *p) {
     Token *var = ct_parser_consume_if(p, TokenType_IDENT);
     if (var == 0) {
-        return ct_astnode_new_error2(p, STR_CONST("expected a variable name"), ct_parser_current_range(p));
+        return ct_astnode_new_error(p, STR_CONST("expected a variable name"));
     }
 
     Token *assignment = ct_parser_consume_if(p, TokenType_ASSIGNMENT);
     if (assignment == 0) {
-        return ct_astnode_new_error2(p, STR_CONST("expected an assignment"), ct_parser_current_range(p));
+        return ct_astnode_new_error(p, STR_CONST("expected an assignment"));
     }
 
     ASTNode *value = ct_grammar_expr(p);
 
     Token *newline = ct_parser_consume_if(p, TokenType_NEWLINE);
     if (newline == 0 && p->input.size > 0) {
-        return ct_astnode_new_error2(p, STR_CONST("expected a newline after an assignment"), ct_parser_current_range(p));
+        return ct_astnode_new_error(p, STR_CONST("expected a newline after an assignment"));
     }
 
     ASTNode *result = ct_astnode_new(p, ASTNodeType_ASSIGNMENT);
@@ -79,10 +79,13 @@ ASTNode* ct_grammar_lmb_file(Parser *p) {
             _ct_skip_until_assignment_again(p);
 
             if (!ct_astnode_is_error(next)) {
-                next = ct_astnode_new_error2(p, STR_CONST("expected an assignment"), ct_document_range_span(
-                    start->range,
-                    ct_parser_current_range(p)
-                ));
+                next = ct_astnode_new_error_ranged(
+                    p, STR_CONST("expected an assignment"),
+                    ct_document_range_span(
+                        start->range,
+                        ct_parser_current_range(p)
+                    )
+                );
                 ct_astnode_append_child(p, file_content, next);
             } else {
                 next->range = ct_document_range_span(

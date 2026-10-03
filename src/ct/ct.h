@@ -171,9 +171,10 @@ typedef struct ASTNode {
 } ASTNode;
 
 extern ASTNode* ct_astnode_new(Parser *p, ASTNodeType type);
-extern ASTNode* ct_astnode_new_error(Parser *p, DocumentError docerr);
+extern ASTNode* ct_astnode_new_error(Parser *p, String msg);
+extern ASTNode* ct_astnode_new_error_from(Parser *p, DocumentError docerr);
+extern ASTNode* ct_astnode_new_error_ranged(Parser *parser, String msg, DocumentRange range);
 extern void ct_astnode_append_child(Parser *p, ASTNode *parent, ASTNode *child);
-extern ASTNode* ct_astnode_new_error2(Parser *parser, String msg, DocumentRange range);
 extern void ct_astnode_print(ASTNode *node, size_t indent);
 extern bool ct_astnode_is_error(ASTNode *node);
 

@@ -291,9 +291,7 @@ ASTNode* ct_grammar_operator_expr(Parser *p) {
             part.type = ExprPartType_SUBEXPR;
             part.data.subexpr = ct_grammar_parens(p);
             if (part.data.subexpr == 0) {
-                return ct_astnode_new_error(p, ct_parser_make_error(
-                    p, "expected a subexpression", ct_parser_current_range(p)
-                ));
+                return ct_astnode_new_error(p, STR_CONST("expected a subexpression"));
             }
             _ct_exprpart_array_append(&parts_array, part);
             break;
@@ -332,7 +330,7 @@ ASTNode* ct_grammar_operator_expr(Parser *p) {
         }
 
         _ct_exprpart_array_destroy(&parts_array);
-        return ct_astnode_new_error(p, docerr);
+        return ct_astnode_new_error_from(p, docerr);
     }
 
     ASTNode *result = 0;
@@ -343,14 +341,15 @@ ASTNode* ct_grammar_operator_expr(Parser *p) {
             break;
 
         case ExprPartType_OP:
-            result = ct_astnode_new_error(p, ct_parser_make_error(
-                p, "invalid expression", parts_array.content[0].data.op->range
-            ));
+            result = ct_astnode_new_error_ranged(
+                p, STR_CONST("invalid expression"),
+                parts_array.content[0].data.op->range
+            );
             break;
 
         default:
             die("[INTERNAL] bad value in parts_array.content[0].type");
-            result = ct_astnode_new_error(p, (DocumentError) { 0 });
+            result = ct_astnode_new_error(p, STR_EMPTY);
             break;
     }
 
@@ -361,17 +360,17 @@ ASTNode* ct_grammar_operator_expr(Parser *p) {
 ASTNode* ct_grammar_parens(Parser *p) {
     Token *opening = ct_parser_consume_if(p, TokenType_OPEN_PAREN);
     if (opening == 0) {
-        return ct_astnode_new_error(p, ct_parser_make_error(p, "expected '('", ct_parser_current_range(p)));
+        return ct_astnode_new_error(p, STR_CONST("expected '('"));
     }
 
     ASTNode *expr = ct_grammar_expr(p);
     if (expr == 0) {
-        return ct_astnode_new_error(p, ct_parser_make_error(p, "expected expression after '('", opening->range));
+        return ct_astnode_new_error_ranged(p, STR_CONST("expected expression after '('"), opening->range);
     }
 
     Token *closing = ct_parser_consume_if(p, TokenType_CLOSE_PAREN);
     if (closing == 0) {
-        return ct_astnode_new_error(p, ct_parser_make_error(p, "expected ')'", expr->range));
+        return ct_astnode_new_error_ranged(p, STR_CONST("expected ')'"), expr->range);
     }
 
     return expr;
