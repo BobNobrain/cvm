@@ -143,6 +143,22 @@ void strb_appendc(StringBuilder *sb, char *c_str) {
     strb_append(sb, str_wrap(c_str));
 }
 
+error strb_read_from_stream(StringBuilder *sb, FILE *from) {
+    const size_t BUFFER_SIZE = 16384;
+    char buffer[BUFFER_SIZE];
+
+    size_t bytes_read = 0;
+    while ((bytes_read = fread(buffer, 1, BUFFER_SIZE, from)) > 0) {
+        strb_append(sb, (String) { .content = buffer, .size = bytes_read });
+    }
+
+    if (ferror(from) != 0) {
+        return E_STREAM;
+    }
+
+    return E_NONE;
+}
+
 String strb_render(StringBuilder *sb) {
     String result = {
         .content = arena_realloc(sb->arena, sb->content, sb->capacity, sb->size),

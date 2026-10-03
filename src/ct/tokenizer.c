@@ -328,7 +328,6 @@ void ct_tokenizer_run(Tokenizer *t, String source, DocumentErrorArray *errors) {
     #define TRY_TOKEN_SCANNER(READER) \
     scan_result = READER(t, &current);                                                      \
     if (scan_result.chars_scanned > 0) {                                                    \
-        printf("succeded with " #READER " (%zu consumed)\n", scan_result.chars_scanned); \
         _ct_tokenizer_consume_source(t, scan_result.chars_scanned);                         \
         if (scan_result.token_set) {                                                        \
             if (!scan_result.token_range_set) {                                             \

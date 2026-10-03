@@ -161,7 +161,7 @@ void _ct_collapse_expr_parts(ExprPartArray *parts_array, Parser *p) {
 
         IFDEBUG( printf("trying operator '" STR_FMT "':\n", STR_FMT_VAL(decl.op)); )
 
-        for (size_t pi = 0; pi < parts_array->size - 1; pi++) {
+        for (size_t pi = 1; pi < parts_array->size; pi++) {
             size_t part_idx = pi;
             if (is_right_assoc) {
                 // for right-associative, iterating from the right

@@ -15,6 +15,7 @@ typedef enum {
     E_MEMORY,
     E_OUT_OF_RANGE,
     E_BAD_DATA,
+    E_STREAM
 } error;
 
 #define ERR_DECL error err;
@@ -96,6 +97,7 @@ typedef void StringBuilder;
 extern StringBuilder *strb_new(Arena *arena, size_t cap);
 extern void strb_append(StringBuilder *sb, const String str);
 extern void strb_appendc(StringBuilder *sb, const char *c_str);
+extern error strb_read_from_stream(StringBuilder *sb, FILE *from);
 extern String strb_render(StringBuilder *sb);
 #endif
 
