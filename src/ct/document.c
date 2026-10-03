@@ -31,6 +31,20 @@ DocumentRange ct_document_range(DocumentPos start, size_t length) {
     return result;
 }
 
+DocumentRange ct_document_range_span(DocumentRange from, DocumentRange to) {
+    DocumentRange result = {
+        .start = from.start,
+        .end = to.end
+    };
+    if (to.start.caret < from.start.caret) {
+        result.start = to.start;
+    }
+    if (from.end.caret > to.end.caret) {
+        result.end = from.end;
+    }
+    return result;
+}
+
 int ct_document_range_length(DocumentRange range) {
     int start = (int) range.start.caret;
     int end = (int) range.end.caret;

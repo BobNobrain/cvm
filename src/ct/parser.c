@@ -8,7 +8,6 @@ Parser *ct_parser_new() {
     parser->input_start = 0;
     parser->input_next = 0;
     parser->input_size = 0;
-    parser->current = 0;
     parser->root = 0;
 
     ct_astree_init(&parser->tree);
@@ -29,6 +28,14 @@ Token *ct_parser_consume(Parser *p) {
     p->input_next += 1;
     return result;
 }
+Token *ct_parser_peek(Parser *p) {
+    if (p->input_next >= &p->input_start[p->input_size]) {
+        return 0;
+    }
+
+    Token *result = p->input_next;
+    return result;
+}
 Token *ct_parser_consume_if(Parser *p, TokenType type) {
     if (p->input_next >= &p->input_start[p->input_size]) {
         return 0;
@@ -44,6 +51,29 @@ Token *ct_parser_consume_if(Parser *p, TokenType type) {
 }
 void ct_parser_rewind(Parser *p, Token *to) {
     p->input_next = to;
+}
+void ct_parser_rewind_n(Parser *p, int n) {
+    p->input_next += n;
+    if (p->input_next < p->input_start) {
+        p->input_next = p->input_start;
+    } else if (p->input_next >= &p->input_start[p->input_size]) {
+        p->input_next = &p->input_start[p->input_size];
+    }
+}
+DocumentRange ct_parser_current_range(Parser *p) {
+    if (p->input_start == 0 || p->input_size == 0) {
+        return (DocumentRange) { 0 };
+    }
+
+    Token *current = p->input_next;
+
+    if (p->input_next >= &p->input_start[p->input_size]) {
+        current = &p->input_start[p->input_size - 1];
+    } else if (p->input_next == 0) {
+        current = p->input_start;
+    }
+
+    return current->range;
 }
 
 error ct_parser_parse(Parser *p, String source, ParserGrammar grammar, DocumentError *docerr) {
@@ -62,11 +92,21 @@ error ct_parser_parse(Parser *p, String source, ParserGrammar grammar, DocumentE
     p->input_size = t.size;
     p->input_next = p->input_start;
 
-    ERR_PASS( grammar(p, docerr) )
-    p->root = p->current;
+    p->root = grammar(p, docerr);
 
     printf("AST:\n");
-    ct_astnode_print(p->root);
+    ct_astnode_print(p->root, 0);
+
+    if (ct_astnode_is_error(p->root)) {
+        return E_BAD_DATA;
+    }
 
     return E_NONE;
+}
+
+void ct_parser_configure_operators(Parser *p, OperatorDeclSlice optable) {
+    // TODO: validate the table:
+    // - no mixing unary/binary and associativity on the same priority level
+    // - must be sorted by priority, desc
+    p->optable = optable;
 }

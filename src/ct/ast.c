@@ -41,7 +41,7 @@ void ct_astree_destroy(ASTree *tree) {
     free(tree->blocks);
 }
 
-ASTNode *ct_astnode_new(ASTree *tree, ASTNodeType type) {
+ASTNode* ct_astnode_new(ASTree *tree, ASTNodeType type) {
     if (tree->current_block_size >= tree->block_size || tree->n_blocks_used == 0) {
         ct_astree_allocate_block(tree);
     }
@@ -72,61 +72,61 @@ ASTNode *ct_astnode_new(ASTree *tree, ASTNodeType type) {
 
     return new_node;
 }
-
-void ct_astnode_to_string(ASTNode *node, StringBuilder *sb, size_t indent) {
-    const size_t buffer_size = 128;
-    char buffer[buffer_size];
-
-    for (size_t i = 0; i < indent; i++) {
-        strb_appendc(sb, "  ");
-    }
-
-    switch (node->type) {
-    case AST_TYPE_LINT:
-        snprintf(buffer, buffer_size, "INT %d", node->base->data.intl);
-        strb_appendc(sb, buffer);
-        break;
-    case AST_TYPE_LFLOAT:
-        snprintf(buffer, buffer_size, "FLOAT %f", node->base->data.floatl);
-        strb_appendc(sb, buffer);
-        break;
-    case AST_TYPE_LBOOL:
-        snprintf(buffer, buffer_size, "BOOL %d", node->base->data.booll);
-        strb_appendc(sb, buffer);
-        break;
-    case AST_TYPE_IDENT:
-        strb_appendc(sb, "IDENT");
-        break;
-    case AST_TYPE_BINOP:
-        snprintf(buffer, buffer_size, "BINOP " STR_FMT, STR_FMT_VAL(node->base->data.op));
-        strb_appendc(sb, buffer);
-        break;
-    case AST_TYPE_UNOP:
-        snprintf(buffer, buffer_size, "UNOP " STR_FMT, STR_FMT_VAL(node->base->data.op));
-        strb_appendc(sb, buffer);
-        break;
-
-    default:
-        strb_appendc(sb, "UNKNOWN");
-        break;
-    }
-
-    strb_appendc(sb, "\n");
-
-    for (size_t i = 0; i < node->n_children; i++) {
-        ct_astnode_to_string(node->children[i], sb, indent + 1);
-    }
+ASTNode* ct_astnode_new_error(ASTree *tree, DocumentError docerr) {
+    ASTNode *e = ct_astnode_new(tree, AST_TYPE_SYNTAX_ERROR);
+    e->data.error = docerr.message;
+    e->range = docerr.location;
+    return e;
 }
 
-void ct_astnode_print(ASTNode *node) {
+bool ct_astnode_is_error(ASTNode *node) {
+    return node == 0 || node->type == AST_TYPE_SYNTAX_ERROR;
+}
+
+void ct_astnode_print(ASTNode *node, size_t indent) {
     if (node == 0) {
-        printf("<null>");
+        printf("<null>\n");
         return;
     }
 
-    StringBuilder *sb = strb_new(256);
-    ct_astnode_to_string(node, sb, 0);
+    for (size_t i = 0; i < indent; i++) {
+        printf("  ");
+    }
 
-    String result = strb_render(sb);
-    printf(STR_FMT "\n", STR_FMT_VAL(result));
+    switch (node->type) {
+    case AST_TYPE_SYNTAX_ERROR:
+        printf("ERROR: " STR_FMT, STR_FMT_VAL(node->data.error));
+        break;
+    case AST_TYPE_LINT:
+        printf("INT %d", node->base->data.intl);
+        break;
+    case AST_TYPE_LFLOAT:
+        printf("FLOAT %f", node->base->data.floatl);
+        break;
+    case AST_TYPE_LBOOL:
+        printf("BOOL %d", node->base->data.booll);
+        break;
+    case AST_TYPE_IDENT:
+        printf("IDENT");
+        break;
+    case AST_TYPE_BINOP:
+        printf("BINOP " STR_FMT, STR_FMT_VAL(node->base->data.op));
+        break;
+    case AST_TYPE_UNOP:
+        printf("UNOP " STR_FMT, STR_FMT_VAL(node->base->data.op));
+        break;
+
+    default:
+        printf("UNKNOWN");
+        break;
+    }
+
+    if (node->n_children > 0) {
+        printf(" (%zu children)", node->n_children);
+    }
+    printf("\n");
+
+    for (size_t i = 0; i < node->n_children; i++) {
+        ct_astnode_print(node->children[i], indent + 1);
+    }
 }

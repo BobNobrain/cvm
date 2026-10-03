@@ -26,6 +26,7 @@ typedef struct DocumentRange {
 } DocumentRange;
 
 extern DocumentRange ct_document_range(DocumentPos start, size_t length);
+extern DocumentRange ct_document_range_span(DocumentRange from, DocumentRange to);
 extern int ct_document_range_length(DocumentRange range);
 extern String ct_document_substring(String source, DocumentRange range);
 
@@ -78,14 +79,39 @@ extern error ct_tokenizer_run(Tokenizer *t, String source, DocumentError *err);
 extern void ct_tokenizer_print(Tokenizer *t);
 
 
+/** Operators */
+typedef uint8_t OperatorPriority;
+#define OPERATOR_PRIORITY_MIN 0
+#define OPERATOR_PRIORITY_MAX 255
+typedef enum {
+    OperatorType_INVALID,
+    OperatorType_BINARY_NOASSOC,
+    OperatorType_BINARY_LEFT,
+    OperatorType_BINARY_RIGHT,
+    OperatorType_UNARY_NOASSOC,
+    OperatorType_UNARY_LEFT,
+    OperatorType_UNARY_RIGHT,
+} OperatorType;
+
+typedef struct {
+    String op;
+    OperatorType type;
+    OperatorPriority priority;
+} OperatorDecl;
+
+SLICE_DECL(OperatorDecl)
+SLICE_METHODS_DECL(ct_opdeclslice, OperatorDecl)
+
+
 /** Language AST */
 #define AST_TYPES_LIST(X) \
+    X(AST_TYPE_SYNTAX_ERROR, String, error) \
     X(AST_TYPE_LINT, int, lint) \
     X(AST_TYPE_LFLOAT, float, lfloat) \
     X(AST_TYPE_LBOOL, bool, lbool) \
     X(AST_TYPE_IDENT, , ) \
     X(AST_TYPE_BINOP, , ) \
-    X(AST_TYPE_UNOP, , ) \
+    X(AST_TYPE_UNOP, , )
 
 #define AST_TYPES_LIST_X(CONST_NAME, DATA_TYPE, FIELD_NAME) CONST_NAME,
 typedef enum ASTNodeType {
@@ -100,6 +126,12 @@ typedef struct ASTNode {
     size_t children_cap;
     DocumentRange range;
     Token *base;
+
+    #define AST_TYPES_LIST_X(CONST_NAME, DATA_TYPE, FIELD_NAME) DATA_TYPE FIELD_NAME;
+    union {
+        AST_TYPES_LIST(AST_TYPES_LIST_X)
+    } data;
+    #undef AST_TYPES_LIST_X
 } ASTNode;
 
 typedef struct {
@@ -113,7 +145,9 @@ typedef struct {
 extern void ct_astree_init(ASTree *tree);
 extern void ct_astree_destroy(ASTree *tree);
 extern ASTNode *ct_astnode_new(ASTree *tree, ASTNodeType type);
-extern void ct_astnode_print(ASTNode *node);
+extern ASTNode *ct_astnode_new_error(ASTree *tree, DocumentError docerr);
+extern void ct_astnode_print(ASTNode *node, size_t indent);
+extern bool ct_astnode_is_error(ASTNode *node);
 
 
 /** The parser itself */
@@ -124,21 +158,27 @@ typedef struct {
 
     ASTree tree;
     ASTNode *root;
-    ASTNode *current;
+
+    // language settings
+    OperatorDeclSlice optable;
 } Parser;
 
-typedef error (*ParserGrammar)(Parser*, DocumentError*);
+typedef ASTNode* (*ParserGrammar)(Parser*, DocumentError*);
 
 extern Parser *ct_parser_new();
 extern void ct_parser_destroy(Parser *p);
+extern void ct_parser_configure_operators(Parser *p, OperatorDeclSlice optable);
 extern error ct_parser_parse(Parser *p, String source, ParserGrammar grammar, DocumentError *error);
 extern Token *ct_parser_consume(Parser *p);
+extern Token *ct_parser_peek(Parser *p);
 extern Token *ct_parser_consume_if(Parser *p, TokenType type);
 extern void ct_parser_rewind(Parser *p, Token *to);
+extern void ct_parser_rewind_n(Parser *p, int n);
+extern DocumentRange ct_parser_current_range(Parser *p);
 
 
 /** Grammars */
-extern error ct_grammar_expr(Parser *p, DocumentError *err);
+extern ASTNode* ct_grammar_expr(Parser *p, DocumentError *err);
 
 
 /** Hiding all internal macros */

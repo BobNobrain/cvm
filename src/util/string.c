@@ -55,6 +55,16 @@ bool str_eqc(String str, const char* c_str) {
     return true;
 }
 
+bool str_eq(String s1, String s2) {
+    if (s1.size != s2.size) { return false; }
+    for (size_t i = 0; i < s1.size; i++) {
+        if (s1.content[i] != s2.content[i]) {
+            return false;
+        }
+    }
+    return true;
+}
+
 size_t str_parse_uint_dec(String str, unsigned int *into) {
     *into = 0;
 

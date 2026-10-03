@@ -6,6 +6,8 @@
 #include "util.h"
 #include "ct_int.h"
 
+ARRAY_METHODS_IMPL(ct_tokenarray, Token)
+
 void ct_tokenizer_init(Tokenizer *t) {
     t->size = 0;
     t->capacity = 128;
