@@ -50,14 +50,14 @@ $(1): $(OUT_DIR)/$(1)
 $(OUT_DIR)/$(1): $(OUT_DIR)/$(1).o $(patsubst %,$(OUT_DIR_LIBS)/%.o,$(2))
 	@echo "Linking '$$@' with following libs: $(2)..."
 	@echo
-	mkdir -p $(dir $$@)
-	$(CC) $$^ $(LD_FLAGS) -o $$@
+	mkdir -p $$(@D)
+	$$(CC) $$^ $$(LD_FLAGS) -o $$@
 
 $(OUT_DIR)/$(1).o: src/$(1).c $(foreach lib,$(2),src/$(lib)/$(lib).h)
 	@echo "Compiling executable '$1'..."
 	@echo
 	mkdir -p $$(@D)
-	$(CC) $(CPPFLAGS) $(CFLAGS) -c $$< -o $$@
+	$$(CC) $$(CPPFLAGS) $$(CFLAGS) -c $$< -o $$@
 endef
 
 $(eval $(call EXEC_COMPILATION_RULE,exprc,util lang ct))
