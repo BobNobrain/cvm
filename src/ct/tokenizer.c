@@ -15,9 +15,9 @@ void ct_tokenizer_init(Tokenizer *t, Arena *arena) {
 }
 
 void ct_tokenizer_push_token(Tokenizer *t, Token token) {
-    if (token.type == TOKEN_INVALID &&
+    if (token.type == TokenType_INVALID &&
         t->tokens.size > 0 &&
-        t->tokens.content[t->tokens.size - 1].type == TOKEN_INVALID
+        t->tokens.content[t->tokens.size - 1].type == TokenType_INVALID
     ) {
         t->tokens.content[t->tokens.size - 1].range.end = token.range.end;
         return;
@@ -74,14 +74,14 @@ size_t ct_tokenizer_read_number(String source, Token *into, LangConfig config) {
 
     if (point_met && i == 1) {
         // a single point is not a valid number literal
-        into->type = TOKEN_INVALID;
+        into->type = TokenType_INVALID;
         return i;
     }
 
     if (point_met) {
-        into->type = TOKEN_FLOAT_LITERAL;
+        into->type = TokenType_FLOAT_LITERAL;
     } else {
-        into->type = TOKEN_INT_LITERAL;
+        into->type = TokenType_INT_LITERAL;
     }
 
     return i;
@@ -113,7 +113,7 @@ size_t ct_tokenizer_read_ident(String source, Token *into, LangConfig config) {
         return 0;
     }
 
-    into->type = TOKEN_IDENT;
+    into->type = TokenType_IDENT;
     return i;
 }
 
@@ -130,7 +130,7 @@ size_t ct_tokenizer_read_op(String source, Token *into, LangConfig config) {
         return 0;
     }
 
-    into->type = TOKEN_OPERATOR;
+    into->type = TokenType_OPERATOR;
     return i;
 }
 
@@ -144,10 +144,10 @@ size_t ct_tokenizer_read_paren(String source, Token *into, LangConfig config) {
     char next = source.content[0];
     switch (next) {
     case '(':
-        into->type = TOKEN_OPEN_PAREN;
+        into->type = TokenType_OPEN_PAREN;
         break;
     case ')':
-        into->type = TOKEN_CLOSE_PAREN;
+        into->type = TokenType_CLOSE_PAREN;
         break;
 
     default:
@@ -161,19 +161,19 @@ void ct_tokenizer_parse_token(Token *token, String source, DocumentErrorArray *e
     String token_content = ct_document_substring(source, token->range);
 
     switch (token->type) {
-    case TOKEN_IDENT:
+    case TokenType_IDENT:
         if (str_eqc(token_content, "true")) {
-            token->type = TOKEN_BOOL_LITERAL;
+            token->type = TokenType_BOOL_LITERAL;
             token->data.booll = true;
         } else if (str_eqc(token_content, "false")) {
-            token->type = TOKEN_BOOL_LITERAL;
+            token->type = TokenType_BOOL_LITERAL;
             token->data.booll = false;
         } else {
             token->data.ident = token_content;
         }
         break;
 
-    case TOKEN_INT_LITERAL: {
+    case TokenType_INT_LITERAL: {
         unsigned int parsed;
         size_t n_chars = str_parse_uint_dec(token_content, &parsed);
 
@@ -190,7 +190,7 @@ void ct_tokenizer_parse_token(Token *token, String source, DocumentErrorArray *e
         break;
     }
 
-    case TOKEN_FLOAT_LITERAL: {
+    case TokenType_FLOAT_LITERAL: {
         unsigned int whole, frac;
         size_t n_chars_whole = str_parse_uint_dec(token_content, &whole);
         String frac_str = str_substring(token_content, n_chars_whole + 1, token_content.size);
@@ -213,11 +213,11 @@ void ct_tokenizer_parse_token(Token *token, String source, DocumentErrorArray *e
         break;
     }
 
-    case TOKEN_OPERATOR:
+    case TokenType_OPERATOR:
         token->data.op = ct_document_substring(source, token->range);
         break;
 
-    case TOKEN_INVALID:
+    case TokenType_INVALID:
         ct_err_array_append(errors, (DocumentError) {
             .source = source,
             .message = STR_CONST("invalid token"),
@@ -264,7 +264,7 @@ void ct_tokenizer_run(Tokenizer *t, String source, LangConfig config, DocumentEr
         }
 
         // cannot consume the rest, must be invalid input
-        current.type = TOKEN_INVALID;
+        current.type = TokenType_INVALID;
         current.range = ct_document_range(cursor, 1);
         ct_tokenizer_push_token(t, current);
         str_assign(&rest, str_substring(rest, 1, rest.size));
@@ -281,36 +281,36 @@ void ct_token_to_string(Token token, StringBuilder *sb) {
     char buffer[buffer_size];
 
     switch (token.type) {
-    case TOKEN_IDENT:
+    case TokenType_IDENT:
         strb_appendc(sb, "<ident> ");
         break;
-    case TOKEN_INT_LITERAL:
+    case TokenType_INT_LITERAL:
         snprintf(buffer, buffer_size, "<int:%d> ", token.data.intl);
         strb_appendc(sb, buffer);
         break;
-    case TOKEN_FLOAT_LITERAL:
+    case TokenType_FLOAT_LITERAL:
         snprintf(buffer, buffer_size, "<float:%f> ", token.data.floatl);
         strb_appendc(sb, buffer);
         break;
-    case TOKEN_BOOL_LITERAL:
+    case TokenType_BOOL_LITERAL:
         if (token.data.booll) {
             strb_appendc(sb, "<true> ");
         } else {
             strb_appendc(sb, "<false> ");
         }
         break;
-    case TOKEN_OPERATOR:
+    case TokenType_OPERATOR:
         snprintf(buffer, buffer_size, "<operator:" STR_FMT "> ", STR_FMT_VAL(token.data.op));
         strb_appendc(sb, buffer);
         break;
-    case TOKEN_OPEN_PAREN:
+    case TokenType_OPEN_PAREN:
         strb_appendc(sb, "( ");
         break;
-    case TOKEN_CLOSE_PAREN:
+    case TokenType_CLOSE_PAREN:
         strb_appendc(sb, ") ");
         break;
 
-    case TOKEN_INVALID:
+    case TokenType_INVALID:
         strb_appendc(sb, "<?>");
         break;
 

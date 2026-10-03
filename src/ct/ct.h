@@ -82,19 +82,19 @@ extern String ct_langconfig_validate(const LangConfig cfg);
 
 /** Tokenizer */
 #define TOKEN_LIST(X) \
-    X(TOKEN_IDENT, String, ident) \
-    X(TOKEN_INT_LITERAL, int, intl) \
-    X(TOKEN_FLOAT_LITERAL, float, floatl) \
-    X(TOKEN_BOOL_LITERAL, bool, booll) \
-    X(TOKEN_OPERATOR, String, op) \
-    X(TOKEN_OPEN_PAREN, , ) \
-    X(TOKEN_CLOSE_PAREN, , )
+    X(TokenType_IDENT, String, ident) \
+    X(TokenType_INT_LITERAL, int, intl) \
+    X(TokenType_FLOAT_LITERAL, float, floatl) \
+    X(TokenType_BOOL_LITERAL, bool, booll) \
+    X(TokenType_OPERATOR, String, op) \
+    X(TokenType_OPEN_PAREN, , ) \
+    X(TokenType_CLOSE_PAREN, , )
 
 #define TOKEN_LIST_X(CONST_NAME, DATA_TYPE, FIELD_NAME) CONST_NAME,
-typedef enum {
+typedef enum TokenType {
     TOKEN_LIST(TOKEN_LIST_X)
 
-    TOKEN_INVALID
+    TokenType_INVALID
 } TokenType;
 #undef TOKEN_LIST_X
 
@@ -127,13 +127,13 @@ extern void ct_tokenizer_print(Tokenizer *t);
 
 /** Language AST */
 #define AST_TYPES_LIST(X) \
-    X(AST_TYPE_SYNTAX_ERROR, String, error) \
-    X(AST_TYPE_LINT, int, lint) \
-    X(AST_TYPE_LFLOAT, float, lfloat) \
-    X(AST_TYPE_LBOOL, bool, lbool) \
-    X(AST_TYPE_IDENT, String, ident) \
-    X(AST_TYPE_BINOP, , ) \
-    X(AST_TYPE_UNOP, , )
+    X(ASTNodeType_SYNTAX_ERROR, String, error) \
+    X(ASTNodeType_LINT, int, lint) \
+    X(ASTNodeType_LFLOAT, float, lfloat) \
+    X(ASTNodeType_LBOOL, bool, lbool) \
+    X(ASTNodeType_IDENT, String, ident) \
+    X(ASTNodeType_BINOP, , ) \
+    X(ASTNodeType_UNOP, , )
 
 #define AST_TYPES_LIST_X(CONST_NAME, DATA_TYPE, FIELD_NAME) CONST_NAME,
 typedef enum ASTNodeType {

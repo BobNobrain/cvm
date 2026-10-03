@@ -14,12 +14,12 @@ ASTNode* ct_astnode_new(Parser *parser, ASTNodeType type) {
     new_node->n_children = 0;
 
     switch (type) {
-    case AST_TYPE_BINOP:
+    case ASTNodeType_BINOP:
         new_node->children_cap = 2;
         new_node->children = arena_alloc(parser->arena, sizeof(ASTNode*) * new_node->children_cap);
         break;
 
-    case AST_TYPE_UNOP:
+    case ASTNodeType_UNOP:
         new_node->children_cap = 1;
         new_node->children = arena_alloc(parser->arena, sizeof(ASTNode*) * new_node->children_cap);
         break;
@@ -32,14 +32,14 @@ ASTNode* ct_astnode_new(Parser *parser, ASTNodeType type) {
     return new_node;
 }
 ASTNode* ct_astnode_new_error(Parser *parser, DocumentError docerr) {
-    ASTNode *e = ct_astnode_new(parser, AST_TYPE_SYNTAX_ERROR);
+    ASTNode *e = ct_astnode_new(parser, ASTNodeType_SYNTAX_ERROR);
     e->data.error = docerr.message;
     e->range = docerr.location;
     return e;
 }
 
 bool ct_astnode_is_error(ASTNode *node) {
-    return node == 0 || node->type == AST_TYPE_SYNTAX_ERROR;
+    return node == 0 || node->type == ASTNodeType_SYNTAX_ERROR;
 }
 
 void ct_astnode_print(ASTNode *node, size_t indent) {
@@ -53,25 +53,25 @@ void ct_astnode_print(ASTNode *node, size_t indent) {
     }
 
     switch (node->type) {
-    case AST_TYPE_SYNTAX_ERROR:
+    case ASTNodeType_SYNTAX_ERROR:
         printf("ERROR: " STR_FMT, STR_FMT_VAL(node->data.error));
         break;
-    case AST_TYPE_LINT:
+    case ASTNodeType_LINT:
         printf("INT %d", node->data.lint);
         break;
-    case AST_TYPE_LFLOAT:
+    case ASTNodeType_LFLOAT:
         printf("FLOAT %f", node->data.lfloat);
         break;
-    case AST_TYPE_LBOOL:
+    case ASTNodeType_LBOOL:
         printf("BOOL %d", node->data.lbool);
         break;
-    case AST_TYPE_IDENT:
+    case ASTNodeType_IDENT:
         printf("IDENT " STR_FMT, STR_FMT_VAL(node->data.ident));
         break;
-    case AST_TYPE_BINOP:
+    case ASTNodeType_BINOP:
         printf("BINOP " STR_FMT, STR_FMT_VAL(node->base->data.op));
         break;
-    case AST_TYPE_UNOP:
+    case ASTNodeType_UNOP:
         printf("UNOP " STR_FMT, STR_FMT_VAL(node->base->data.op));
         break;
 

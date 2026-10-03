@@ -77,17 +77,17 @@ ASTNode* _ct_token_wrap_literal(Parser *p, Token *token) {
     ASTNodeType lit_type;
 
     switch (token->type) {
-    case TOKEN_INT_LITERAL:
-        lit_type = AST_TYPE_LINT;
+    case TokenType_INT_LITERAL:
+        lit_type = ASTNodeType_LINT;
         break;
-    case TOKEN_FLOAT_LITERAL:
-        lit_type = AST_TYPE_LFLOAT;
+    case TokenType_FLOAT_LITERAL:
+        lit_type = ASTNodeType_LFLOAT;
         break;
-    case TOKEN_BOOL_LITERAL:
-        lit_type = AST_TYPE_LBOOL;
+    case TokenType_BOOL_LITERAL:
+        lit_type = ASTNodeType_LBOOL;
         break;
-    case TOKEN_IDENT:
-        lit_type = AST_TYPE_IDENT;
+    case TokenType_IDENT:
+        lit_type = ASTNodeType_IDENT;
         break;
 
     default:
@@ -99,16 +99,16 @@ ASTNode* _ct_token_wrap_literal(Parser *p, Token *token) {
     lit->range = token->range;
 
     switch (token->type) {
-    case TOKEN_INT_LITERAL:
+    case TokenType_INT_LITERAL:
         lit->data.lint = token->data.intl;
         break;
-    case TOKEN_FLOAT_LITERAL:
+    case TokenType_FLOAT_LITERAL:
         lit->data.lfloat = token->data.floatl;
         break;
-    case TOKEN_BOOL_LITERAL:
+    case TokenType_BOOL_LITERAL:
         lit->data.lbool = token->data.booll;
         break;
-    case TOKEN_IDENT:
+    case TokenType_IDENT:
         lit->data.ident = token->data.ident;
         break;
 
@@ -139,11 +139,11 @@ void _ct_collapse_expr_parts(ExprPartArray *parts_array, Parser *p) {
         // direct order, by descending priority
         OperatorDecl decl = p->config.optable.content[odi];
         bool is_right_assoc = false;
-        ASTNodeType node_type = AST_TYPE_UNOP;
+        ASTNodeType node_type = ASTNodeType_UNOP;
 
         switch (decl.type) {
             case OperatorType_BINARY_RIGHT:
-                node_type = AST_TYPE_BINOP;
+                node_type = ASTNodeType_BINOP;
                 is_right_assoc = true;
                 break;
 
@@ -153,7 +153,7 @@ void _ct_collapse_expr_parts(ExprPartArray *parts_array, Parser *p) {
 
             case OperatorType_BINARY_LEFT:
             case OperatorType_BINARY_NOASSOC:
-                node_type = AST_TYPE_BINOP;
+                node_type = ASTNodeType_BINOP;
                 break;
 
             default: break;
@@ -179,7 +179,7 @@ void _ct_collapse_expr_parts(ExprPartArray *parts_array, Parser *p) {
             opnode->base = part->data.op;
             ExprPart opnode_part = { .type = ExprPartType_SUBEXPR, .data.subexpr = opnode };
 
-            if (node_type == AST_TYPE_UNOP) {
+            if (node_type == ASTNodeType_UNOP) {
                 size_t operand_idx = part_idx;
                 size_t opposite_idx = part_idx;
 
@@ -279,22 +279,22 @@ ASTNode* ct_grammar_operator_expr(Parser *p) {
         bool ok = true;
 
         switch (token->type) {
-        case TOKEN_OPERATOR:
+        case TokenType_OPERATOR:
             part.type = ExprPartType_OP;
             part.data.op = token;
             _ct_exprpart_array_append(&parts_array, part);
             break;
 
-        case TOKEN_BOOL_LITERAL:
-        case TOKEN_FLOAT_LITERAL:
-        case TOKEN_IDENT:
-        case TOKEN_INT_LITERAL:
+        case TokenType_BOOL_LITERAL:
+        case TokenType_FLOAT_LITERAL:
+        case TokenType_IDENT:
+        case TokenType_INT_LITERAL:
             part.type = ExprPartType_SUBEXPR;
             part.data.subexpr = _ct_token_wrap_literal(p, token);
             _ct_exprpart_array_append(&parts_array, part);
             break;
 
-        case TOKEN_OPEN_PAREN:
+        case TokenType_OPEN_PAREN:
             ct_parser_rewind_n(p, -1);
             part.type = ExprPartType_SUBEXPR;
             part.data.subexpr = ct_grammar_parens(p);
@@ -367,7 +367,7 @@ ASTNode* ct_grammar_operator_expr(Parser *p) {
 }
 
 ASTNode* ct_grammar_parens(Parser *p) {
-    Token *opening = ct_parser_consume_if(p, TOKEN_OPEN_PAREN);
+    Token *opening = ct_parser_consume_if(p, TokenType_OPEN_PAREN);
     if (opening == 0) {
         return ct_astnode_new_error(p, ct_parser_make_error(p, "expected '('", ct_parser_current_range(p)));
     }
@@ -377,7 +377,7 @@ ASTNode* ct_grammar_parens(Parser *p) {
         return ct_astnode_new_error(p, ct_parser_make_error(p, "expected expression after '('", opening->range));
     }
 
-    Token *closing = ct_parser_consume_if(p, TOKEN_CLOSE_PAREN);
+    Token *closing = ct_parser_consume_if(p, TokenType_CLOSE_PAREN);
     if (closing == 0) {
         return ct_astnode_new_error(p, ct_parser_make_error(p, "expected ')'", expr->range));
     }

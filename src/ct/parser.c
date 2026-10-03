@@ -66,7 +66,7 @@ void _ct_parser_collect_errors(Parser *p, ASTNode *node) {
         return;
     }
 
-    if (node->type == AST_TYPE_SYNTAX_ERROR) {
+    if (node->type == ASTNodeType_SYNTAX_ERROR) {
         ct_err_array_append(&p->errors, (DocumentError) {
             .source = p->source,
             .location = node->range,
