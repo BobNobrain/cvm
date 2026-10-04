@@ -10,6 +10,16 @@
             "cwd": "${workspaceFolder}",
         },
         {
+            "name": "LLDB: c",
+            "type": "lldb-dap",
+            "request": "launch",
+            "program": "${workspaceFolder}/out/debug/c",
+            "stdio": [ "${workspaceFolder}/tests/lambda/1.lmb", null, null ],
+            "args": [ ],
+            "env": { },
+            "cwd": "${workspaceFolder}",
+        },
+        {
             "name": "CPPDBG: exprc",
             "type": "cppdbg",
             "request": "launch",

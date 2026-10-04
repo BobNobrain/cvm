@@ -6,7 +6,7 @@
 
 int main() {
     ERR_DECL
-    FILE *input = stdin;
+    FILE *input = fopen("./tests/lambda/1.lmb", "r"); // stdin;
 
     Arena *arena = arena_new(65536);
     arena_set_max_regions(arena, 8); // 512 KiB memory limit

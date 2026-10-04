@@ -84,6 +84,7 @@ extern String ct_langconfig_validate(const LangConfig cfg);
 #define TOKEN_LIST(X) \
     X(TokenType_NEWLINE, , ) \
     X(TokenType_IDENT, String, ident) \
+    X(TokenType_KEYWORD, Keyword, keyword) \
     X(TokenType_INT_LITERAL, int, intl) \
     X(TokenType_FLOAT_LITERAL, float, floatl) \
     X(TokenType_BOOL_LITERAL, bool, booll) \
@@ -93,6 +94,12 @@ extern String ct_langconfig_validate(const LangConfig cfg);
     X(TokenType_LAMBDA, , ) \
     X(TokenType_DOT, , ) \
     X(TokenType_ASSIGNMENT, ,)
+
+typedef enum Keyword {
+    Keyword_LET,
+    Keyword_IF,
+    Keyword_ELSE,
+} Keyword;
 
 #define TOKEN_LIST_X(CONST_NAME, DATA_TYPE, FIELD_NAME) CONST_NAME,
 typedef enum TokenType {
@@ -203,12 +210,13 @@ typedef struct ParserRewindPoint {
     TokenSlice input;
 } ParserRewindPoint;
 
-extern Parser *ct_parser_new(Arena *arena);
+extern Parser* ct_parser_new(Arena *arena);
 extern String ct_parser_configure(Parser *p, LangConfig config);
 extern void ct_parser_parse(Parser *p, String source, ParserGrammar grammar);
-extern Token *ct_parser_consume(Parser *p);
-extern Token *ct_parser_peek(Parser *p);
-extern Token *ct_parser_consume_if(Parser *p, TokenType type);
+extern Token* ct_parser_consume(Parser *p);
+extern Token* ct_parser_peek(Parser *p);
+extern Token* ct_parser_consume_if(Parser *p, TokenType type);
+extern Token* ct_parser_consume_keyword(Parser *p, Keyword kw);
 extern void ct_parser_rewind(Parser *p, ParserRewindPoint to);
 extern void ct_parser_rewind_n(Parser *p, int n);
 extern DocumentRange ct_parser_current_range(Parser *p);

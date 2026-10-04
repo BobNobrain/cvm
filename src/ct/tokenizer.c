@@ -241,6 +241,15 @@ void ct_tokenizer_parse_token(Token *token, String source, DocumentErrorArray *e
         } else if (str_eqc(token_content, "false")) {
             token->type = TokenType_BOOL_LITERAL;
             token->data.booll = false;
+        } else if (str_eqc(token_content, "let")) {
+            token->type = TokenType_KEYWORD;
+            token->data.keyword = Keyword_LET;
+        } else if (str_eqc(token_content, "if")) {
+            token->type = TokenType_KEYWORD;
+            token->data.keyword = Keyword_IF;
+        } else if (str_eqc(token_content, "else")) {
+            token->type = TokenType_KEYWORD;
+            token->data.keyword = Keyword_ELSE;
         } else {
             token->data.ident = token_content;
         }
@@ -422,6 +431,15 @@ void ct_token_to_string(Token token, StringBuilder *sb) {
 
     case TokenType_ASSIGNMENT:
         strb_appendc(sb, "= ");
+        break;
+
+    case TokenType_KEYWORD:
+        switch (token.data.keyword) {
+            case Keyword_LET: strb_appendc(sb, "LET "); break;
+            case Keyword_IF: strb_appendc(sb, "IF "); break;
+            case Keyword_ELSE: strb_appendc(sb, "ELSE "); break;
+            default: strb_appendc(sb, "<unknown kw> "); break;
+        }
         break;
 
     case TokenType_INVALID:

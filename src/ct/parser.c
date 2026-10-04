@@ -2,7 +2,7 @@
 #include "util.h"
 #include "ct_int.h"
 
-Parser *ct_parser_new(Arena *arena) {
+Parser* ct_parser_new(Arena *arena) {
     Parser *parser = arena_alloc(arena, sizeof(Parser));
     parser->arena = arena;
 
@@ -13,35 +13,37 @@ Parser *ct_parser_new(Arena *arena) {
     return parser;
 }
 
-Token *ct_parser_consume(Parser *p) {
-    if (p->input.size == 0) {
-        return 0;
-    }
+Token* ct_parser_consume(Parser *p) {
+    if (p->input.size == 0) { return 0; }
 
     Token *result = &p->input.content[0];
     p->input = ct_tokenslice_slice(p->input, 1, p->input.size);
     return result;
 }
-Token *ct_parser_peek(Parser *p) {
-    if (p->input.size == 0) {
-        return 0;
-    }
-
+Token* ct_parser_peek(Parser *p) {
+    if (p->input.size == 0) { return 0; }
     return &p->input.content[0];
 }
-Token *ct_parser_consume_if(Parser *p, TokenType type) {
-    if (p->input.size == 0) {
-        return 0;
-    }
+Token* ct_parser_consume_if(Parser *p, TokenType type) {
+    if (p->input.size == 0) { return 0; }
 
     Token *result = &p->input.content[0];
-    if (result->type != type) {
-        return 0;
-    }
+    if (result->type != type) { return 0; }
 
     p->input = ct_tokenslice_slice(p->input, 1, p->input.size);
     return result;
 }
+Token* ct_parser_consume_keyword(Parser *p, Keyword kw) {
+    if (p->input.size == 0) { return 0; }
+
+    Token *result = &p->input.content[0];
+    if (result->type != TokenType_KEYWORD) { return 0; }
+    if (result->data.keyword != kw) { return 0; }
+
+    p->input = ct_tokenslice_slice(p->input, 1, p->input.size);
+    return result;
+}
+
 void ct_parser_rewind(Parser *p, ParserRewindPoint to) {
     p->input = to.input;
 }
@@ -52,9 +54,14 @@ void ct_parser_rewind_n(Parser *p, int n) {
         n += 1;
     }
 }
+
 DocumentRange ct_parser_current_range(Parser *p) {
     if (p->input.size == 0) {
-        return (DocumentRange) { 0 };
+        if (p->input_original.size == 0) {
+            return (DocumentRange) { 0 };
+        }
+
+        return ct_tokenslice_at(p->input_original, p->input_original.size - 1)->range;
     }
 
     return p->input.content[0].range;
@@ -92,6 +99,7 @@ void ct_parser_parse(Parser *p, String source, ParserGrammar grammar) {
     printf("\n");
 
     TokenSlice tokens = ct_tokenarray_seal(&t.tokens);
+    p->input_original = tokens;
     p->input = tokens;
 
     p->root = grammar(p);

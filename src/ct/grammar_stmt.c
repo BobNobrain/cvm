@@ -20,22 +20,28 @@ void _ct_skip_newlines(Parser *p) {
     while ((t = ct_parser_consume_if(p, TokenType_NEWLINE)) != 0) {}
 }
 
-void _ct_skip_until_assignment_again(Parser *p) {
+void _ct_skip_until_top_level_decl_again(Parser *p) {
     Token *next = 0;
 
-    while ((next = ct_parser_consume(p)) != 0) {
+    while ((next = ct_parser_peek(p)) != 0) {
         switch (next->type) {
-            case TokenType_IDENT:
-                ct_parser_rewind_n(p, -1);
-                return;
+            case TokenType_KEYWORD:
+                if (next->data.keyword == Keyword_LET) {
+                    return;
+                }
 
             default:
+                ct_parser_consume(p);
                 break;
         }
     }
 }
 
-ASTNode* _ct_grammar_assignment(Parser *p) {
+ASTNode* _ct_grammar_let_declaration(Parser *p) {
+    if (ct_parser_consume_keyword(p, Keyword_LET) == 0) {
+        return ct_astnode_new_error(p, STR_CONST("expected a 'let' keyword"));
+    }
+
     Token *var = ct_parser_consume_if(p, TokenType_IDENT);
     if (var == 0) {
         return ct_astnode_new_error(p, STR_CONST("expected a variable name"));
@@ -68,31 +74,19 @@ ASTNode* ct_grammar_lmb_file(Parser *p) {
 
     while (p->input.size > 0) {
         Token *start = &p->input.content[0];
-        ASTNode *next =_ct_grammar_assignment(p);
+        ASTNode *next =_ct_grammar_let_declaration(p);
         ct_astnode_append_child(p, file_content, next);
 
-        Token *current = &p->input.content[0];
-        if (start == current) {
+        if (ct_astnode_is_error(next)) {
             // nothing was consumed, and all options were exhausted;
             // let's give up and generate a big syntax error,
             // and skip tokens until it's parseable again
-            _ct_skip_until_assignment_again(p);
+            _ct_skip_until_top_level_decl_again(p);
 
-            if (!ct_astnode_is_error(next)) {
-                next = ct_astnode_new_error_ranged(
-                    p, STR_CONST("expected an assignment"),
-                    ct_document_range_span(
-                        start->range,
-                        ct_parser_current_range(p)
-                    )
-                );
-                ct_astnode_append_child(p, file_content, next);
-            } else {
-                next->range = ct_document_range_span(
-                    start->range,
-                    ct_parser_current_range(p)
-                );
-            }
+            next->range = ct_document_range_span(
+                start->range,
+                ct_parser_current_range(p)
+            );
         }
 
         _ct_skip_newlines(p);

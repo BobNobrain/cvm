@@ -91,7 +91,14 @@ void ct_astnode_print(ASTNode *node, size_t indent) {
 
     switch (node->type) {
     case ASTNodeType_SYNTAX_ERROR:
-        printf("ERROR: " STR_FMT, STR_FMT_VAL(node->data.error));
+        printf(
+            "ERROR (%zu:%zu-%zu:%zu): " STR_FMT,
+            node->range.start.line,
+            node->range.start.column,
+            node->range.end.line,
+            node->range.end.column,
+            STR_FMT_VAL(node->data.error)
+        );
         break;
     case ASTNodeType_LINT:
         printf("INT %d", node->data.lint);
