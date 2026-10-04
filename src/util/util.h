@@ -63,7 +63,7 @@ extern void arena_set_max_regions(Arena *arena, size_t max_regions);
 
 
 /** String is a simple wrapper around C strings that allows seamless slicing. It is not zero-terminated. */
-typedef struct {
+typedef struct String {
     char *content;
     size_t size;
 } String;
@@ -104,64 +104,68 @@ extern String strb_render(StringBuilder *sb);
 
 
 /** Slices */
-#define SLICE_DECL(T_ELEM) \
-    typedef struct {        \
+#define SLICE_DECL_NAMED(T_ELEM, NAME) \
+    typedef struct NAME {        \
         T_ELEM *content;    \
         size_t size;        \
-    } T_ELEM##Slice;
+    } NAME;
 
-#define SLICE_METHODS_DECL(PREFIX, T_ELEM) \
-    extern void PREFIX##_destroy(T_ELEM##Slice *slice);                                 \
-    extern T_ELEM##Slice PREFIX##_slice(T_ELEM##Slice slice, size_t start, size_t end); \
-    extern T_ELEM *PREFIX##_at(T_ELEM##Slice slice, size_t at);                         \
-    extern T_ELEM##Slice PREFIX##_of_const(T_ELEM array[], size_t length);
+#define SLICE_METHODS_DECL_NAMED(PREFIX, T_ELEM, NAME) \
+    extern void PREFIX##_destroy(NAME *slice);                          \
+    extern NAME PREFIX##_slice(NAME slice, size_t start, size_t end);   \
+    extern T_ELEM *PREFIX##_at(NAME slice, size_t at);                  \
+    extern NAME PREFIX##_of_const(T_ELEM array[], size_t length);
 
-#define SLICE_METHODS_IMPL(PREFIX, T_ELEM) \
-    void PREFIX##_destroy(T_ELEM##Slice *slice) {                                   \
-        if (slice->content != 0) { free(slice->content); }                          \
-        slice->content = 0; slice->size = 0;                                        \
-    }                                                                               \
-    T_ELEM##Slice PREFIX##_slice(T_ELEM##Slice slice, size_t start, size_t end) {   \
-        T_ELEM##Slice result = { .content = 0, .size = 0 };                         \
-        if (start > slice.size || end < start) { return result; }                   \
-        result.content = &slice.content[start];                                     \
-        result.size = end - start;                                                  \
-        return result;                                                              \
-    }                                                                               \
-    T_ELEM *PREFIX##_at(T_ELEM##Slice slice, size_t at) {                           \
-        if (at >= slice.size) {                                                     \
-            die_out_of_bounds(#PREFIX "_at", at, slice.size);                       \
-        }                                                                           \
-        return &slice.content[at];                                                  \
-    }                                                                               \
-    T_ELEM##Slice PREFIX##_of_const(T_ELEM array[], size_t size) {            \
-        T_ELEM##Slice result = { .content = &array[0], .size = size };              \
-        return result;                                                              \
+#define SLICE_METHODS_IMPL_NAMED(PREFIX, T_ELEM, NAME) \
+    void PREFIX##_destroy(NAME *slice) {                            \
+        if (slice->content != 0) { free(slice->content); }          \
+        slice->content = 0; slice->size = 0;                        \
+    }                                                               \
+    NAME PREFIX##_slice(NAME slice, size_t start, size_t end) {     \
+        NAME result = { .content = 0, .size = 0 };                  \
+        if (start > slice.size || end < start) { return result; }   \
+        result.content = &slice.content[start];                     \
+        result.size = end - start;                                  \
+        return result;                                              \
+    }                                                               \
+    T_ELEM *PREFIX##_at(NAME slice, size_t at) {                    \
+        if (at >= slice.size) {                                     \
+            die_out_of_bounds(#PREFIX "_at", at, slice.size);       \
+        }                                                           \
+        return &slice.content[at];                                  \
+    }                                                               \
+    NAME PREFIX##_of_const(T_ELEM array[], size_t size) {           \
+        NAME result = { .content = &array[0], .size = size };       \
+        return result;                                              \
     }
 
+#define SLICE_DECL(T_ELEM) SLICE_DECL_NAMED(T_ELEM, T_ELEM##Slice)
+#define SLICE_METHODS_DECL(PREFIX, T_ELEM) SLICE_METHODS_DECL_NAMED(PREFIX, T_ELEM, T_ELEM##Slice)
+#define SLICE_METHODS_IMPL(PREFIX, T_ELEM) SLICE_METHODS_IMPL_NAMED(PREFIX, T_ELEM, T_ELEM##Slice)
+
 /** Dynamic arrays */
-#define ARRAY_DECL(T_ELEM) \
-    typedef struct {        \
+#define ARRAY_DECL_NAMED(T_ELEM, NAME) \
+    typedef struct NAME {   \
         Arena *arena;       \
         T_ELEM *content;    \
         size_t size;        \
         size_t capacity;    \
-    } T_ELEM##Array;
+    } NAME;
 
-#define ARRAY_METHODS_DECL(PREFIX, T_ELEM) \
-    extern void PREFIX##_init(T_ELEM##Array *arr, size_t initial_capacity, Arena *arena);   \
-    extern void PREFIX##_append(T_ELEM##Array *arr, T_ELEM element);                        \
-    extern size_t PREFIX##_cut(T_ELEM##Array *arr, size_t start, size_t n);                 \
-    extern T_ELEM *PREFIX##_at(T_ELEM##Array *arr, size_t at);                              \
-    extern void PREFIX##_destroy(T_ELEM##Array *arr);
+#define ARRAY_METHODS_DECL_NAMED(PREFIX, T_ELEM, NAME) \
+    extern void PREFIX##_init(NAME *arr, size_t initial_capacity, Arena *arena);   \
+    extern void PREFIX##_append(NAME *arr, T_ELEM element);                        \
+    extern size_t PREFIX##_cut(NAME *arr, size_t start, size_t n);                 \
+    extern T_ELEM *PREFIX##_at(NAME *arr, size_t at);                              \
+    extern void PREFIX##_destroy(NAME *arr);
 
-#define ARRAY_METHODS_IMPL(PREFIX, T_ELEM) \
-    void PREFIX##_init(T_ELEM##Array *arr, size_t icap, Arena *arena) {     \
+#define ARRAY_METHODS_IMPL_NAMED(PREFIX, T_ELEM, NAME) \
+    void PREFIX##_init(NAME *arr, size_t icap, Arena *arena) {              \
         if (icap == 0) { icap = 8; }                                        \
         arr->content = arena_alloc(arena, icap * sizeof(T_ELEM));           \
         arr->arena = arena; arr->size = 0; arr->capacity = icap;            \
     }                                                                       \
-    void PREFIX##_append(T_ELEM##Array *arr, T_ELEM element) {              \
+    void PREFIX##_append(NAME *arr, T_ELEM element) {                       \
         if (arr->size >= arr->capacity) {                                   \
             size_t new_cap = arr->capacity + MIN(arr->capacity * 2, 4096);  \
             arr->content = arena_realloc(                                   \
@@ -172,7 +176,7 @@ extern String strb_render(StringBuilder *sb);
         }                                                                   \
         arr->content[arr->size] = element; arr->size += 1;                  \
     }                                                                       \
-    size_t PREFIX##_cut(T_ELEM##Array *arr, size_t start, size_t n) {       \
+    size_t PREFIX##_cut(NAME *arr, size_t start, size_t n) {                \
         if (start >= arr->size || n == 0) { return 0; }                     \
         if (start + n >= arr->size) { n = arr->size - start; }              \
         for (size_t i = start; i < arr->size - n; i++) {                    \
@@ -180,26 +184,30 @@ extern String strb_render(StringBuilder *sb);
         }                                                                   \
         arr->size -= n; return n;                                           \
     }                                                                       \
-    T_ELEM *PREFIX##_at(T_ELEM##Array *arr, size_t at) {                    \
+    T_ELEM *PREFIX##_at(NAME *arr, size_t at) {                             \
         if (at >= arr->size) {                                              \
             die_out_of_bounds(#PREFIX "_at", at, arr->size);                \
         }                                                                   \
         return &arr->content[at];                                           \
     }                                                                       \
-    void PREFIX##_destroy(T_ELEM##Array *arr) {                             \
+    void PREFIX##_destroy(NAME *arr) {                                      \
         if (arr->content != 0 && arr->arena == arena_global()) {            \
             free(arr->content);                                             \
         }                                                                   \
-        *arr = (T_ELEM##Array) { 0 };                                       \
+        *arr = (NAME) { 0 };                                                \
     }
 
-/** Methods for when you have both XArray and XSlice */
-#define SLICE_ARRAY_METHODS_DECL(PREFIX, T_ELEM) \
-    extern T_ELEM##Slice PREFIX##_seal(T_ELEM##Array *arr);
+#define ARRAY_DECL(T_ELEM) ARRAY_DECL_NAMED(T_ELEM, T_ELEM##Array)
+#define ARRAY_METHODS_DECL(PREFIX, T_ELEM) ARRAY_METHODS_DECL_NAMED(PREFIX, T_ELEM, T_ELEM##Array)
+#define ARRAY_METHODS_IMPL(PREFIX, T_ELEM) ARRAY_METHODS_IMPL_NAMED(PREFIX, T_ELEM, T_ELEM##Array)
 
-#define SLICE_ARRAY_METHODS_IMPL(PREFIX, T_ELEM) \
-    T_ELEM##Slice PREFIX##_seal(T_ELEM##Array *arr) {                       \
-        T_ELEM##Slice result = {                                            \
+/** Methods for when you have both XArray and XSlice */
+#define SLICE_ARRAY_METHODS_DECL_NAMED(PREFIX, T_ELEM, ARRAY_NAME, SLICE_NAME) \
+    extern SLICE_NAME PREFIX##_seal(ARRAY_NAME *arr);
+
+#define SLICE_ARRAY_METHODS_IMPL_NAMED(PREFIX, T_ELEM, ARRAY_NAME, SLICE_NAME) \
+    SLICE_NAME PREFIX##_seal(ARRAY_NAME *arr) {                                \
+        SLICE_NAME result = {                                            \
             .content = arena_realloc(                                       \
                 arr->arena, arr->content,                                   \
                 arr->capacity * sizeof(T_ELEM), arr->size * sizeof(T_ELEM)  \
@@ -208,5 +216,30 @@ extern String strb_render(StringBuilder *sb);
         };                                                                  \
         PREFIX##_destroy(arr); return result;                               \
     }
+
+#define SLICE_ARRAY_METHODS_DECL(PREFIX, T_ELEM) \
+    SLICE_ARRAY_METHODS_DECL_NAMED(PREFIX, T_ELEM, T_ELEM##Array, T_ELEM##Slice)
+#define SLICE_ARRAY_METHODS_IMPL(PREFIX, T_ELEM) \
+    SLICE_ARRAY_METHODS_IMPL_NAMED(PREFIX, T_ELEM, T_ELEM##Array, T_ELEM##Slice)
+
+#define BUILTIN_ARRAYS_LIST(X) \
+    X(size_t,   SizeTArray,   sizet_array,    SizeTSlice,     sizet_slice)  \
+    X(String,   StringArray,  strarr,         StringSlice,    strslice)     \
+
+#define BUILTIN_ARRAYS_DECLARE(T_ELEM, ARRAY_NAME, ARRAY_PREFIX, SLICE_NAME, SLICE_PREFIX) \
+    ARRAY_DECL_NAMED(T_ELEM, ARRAY_NAME)                                            \
+    ARRAY_METHODS_DECL_NAMED(ARRAY_PREFIX, T_ELEM, ARRAY_NAME)                      \
+    SLICE_DECL_NAMED(T_ELEM, SLICE_NAME)                                            \
+    SLICE_METHODS_DECL_NAMED(SLICE_PREFIX, T_ELEM, SLICE_NAME)                      \
+    SLICE_ARRAY_METHODS_DECL_NAMED(ARRAY_PREFIX, T_ELEM, ARRAY_NAME, SLICE_NAME)    \
+
+BUILTIN_ARRAYS_LIST(BUILTIN_ARRAYS_DECLARE)
+
+#undef BUILTIN_ARRAYS_DECLARE
+
+
+#ifndef UTIL_INTERNAL
+#undef BUILTIN_ARRAYS_LIST
+#endif
 
 #endif

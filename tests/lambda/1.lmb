@@ -3,4 +3,6 @@ let y = 11.0 / 2
 let z =
 42
 let w = -3
-let 0
+
+let f = \x y. (42 - x) * y
+let f_p = f (10 + 2)

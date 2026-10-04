@@ -12,22 +12,22 @@ ASTNode* ct_astnode_new(Parser *parser, ASTNodeType type) {
     new_node->type = type;
     new_node->base = 0;
     new_node->n_children = 0;
+    new_node->children_cap = 0;
+    new_node->children = 0;
 
     switch (type) {
     case ASTNodeType_BINOP:
     case ASTNodeType_ASSIGNMENT:
-        new_node->children_cap = 2;
-        new_node->children = arena_alloc(parser->arena, sizeof(ASTNode*) * new_node->children_cap);
+        ct_astnode_alloc_children(parser, new_node, 2);
         break;
 
     case ASTNodeType_UNOP:
-        new_node->children_cap = 1;
-        new_node->children = arena_alloc(parser->arena, sizeof(ASTNode*) * new_node->children_cap);
+    case ASTNodeType_LAMBDA:
+        ct_astnode_alloc_children(parser, new_node, 1);
         break;
 
     default:
-        new_node->children = 0;
-        new_node->children_cap = 0;
+        break;
     }
 
     return new_node;
@@ -52,23 +52,28 @@ ASTNode* ct_astnode_new_error_ranged(Parser *parser, String msg, DocumentRange r
     return e;
 }
 
-void ct_astnode_append_child(Parser *p, ASTNode *parent, ASTNode *child) {
+void ct_astnode_alloc_children(Parser *p, ASTNode *parent, size_t n) {
     if (parent->children_cap == 0) {
-        size_t new_cap = 16;
-        parent->children = arena_alloc(p->arena, sizeof(ASTNode*) * new_cap);
-        parent->children_cap = new_cap;
-    } else if (parent->n_children >= parent->children_cap) {
-        size_t cap_increase = parent->children_cap;
-        if (cap_increase >= 128) { cap_increase = 128; }
-        size_t new_cap = cap_increase + parent->children_cap;
-
+        parent->children = arena_alloc(p->arena, sizeof(ASTNode*) * n);
+    } else {
         parent->children = arena_realloc(
             p->arena,
             parent->children,
             sizeof(ASTNode*) * parent->children_cap,
-            sizeof(ASTNode*) * new_cap
+            sizeof(ASTNode*) * (parent->children_cap + n)
         );
-        parent->children_cap = new_cap;
+    }
+    parent->children_cap += n;
+}
+void ct_astnode_append_child(Parser *p, ASTNode *parent, ASTNode *child) {
+    if (parent->children_cap == 0) {
+        ct_astnode_alloc_children(p, parent, 16);
+    } else if (parent->n_children >= parent->children_cap) {
+        size_t cap_increase = parent->children_cap;
+        if (cap_increase < 16) { cap_increase = 16; }
+        if (cap_increase >= 128) { cap_increase = 128; }
+
+        ct_astnode_alloc_children(p, parent, cap_increase);
     }
 
     parent->children[parent->n_children] = child;
@@ -112,11 +117,21 @@ void ct_astnode_print(ASTNode *node, size_t indent) {
     case ASTNodeType_IDENT:
         printf("IDENT " STR_FMT, STR_FMT_VAL(node->data.ident));
         break;
+    case ASTNodeType_LAMBDA:
+        printf("LAMBDA (%zu) \\", node->data.lambda.argnames.size);
+        for (size_t i = 0; i < node->data.lambda.argnames.size; i++) {
+            printf(STR_FMT " ", STR_FMT_VAL(node->data.lambda.argnames.content[i]));
+        }
+        printf(". ");
+        break;
     case ASTNodeType_BINOP:
         printf("BINOP " STR_FMT, STR_FMT_VAL(node->base->data.op));
         break;
     case ASTNodeType_UNOP:
         printf("UNOP " STR_FMT, STR_FMT_VAL(node->base->data.op));
+        break;
+    case ASTNodeType_FNCALL:
+        printf("FNCALL ");
         break;
     case ASTNodeType_ASSIGNMENT:
         printf("ASSIGNMENT " STR_FMT " =", STR_FMT_VAL(node->data.assignment.identifier));

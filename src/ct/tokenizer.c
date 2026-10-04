@@ -125,7 +125,7 @@ TokenScannerResult _ct_tokenizer_scan_number(Tokenizer *t, Token *into) {
 
     if (point_met && i == 1) {
         // a single point is not a valid number literal
-        into->type = TokenType_INVALID;
+        into->type = TokenType_DOT;
         return _ct_result_ok(i);
     }
 

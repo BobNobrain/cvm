@@ -51,6 +51,7 @@ void _ct_print_exprpart_array(ExprPartArray *arr, size_t idx) {
 #endif
 
 ASTNode* ct_grammar_parens(Parser *p);
+ASTNode* ct_grammar_lambda(Parser *p);
 
 DocumentRange _ct_exprpart_get_range(ExprPart *part) {
     switch (part->type) {
@@ -267,13 +268,14 @@ ASTNode* ct_grammar_operator_expr(Parser *p) {
     ExprPart part;
 
     // wrap everything into ExprPart, parsing nested (subexpressions)
-    while ((token = ct_parser_consume(p)) != 0) {
+    while ((token = ct_parser_peek(p)) != 0) {
         bool ok = true;
 
         switch (token->type) {
         case TokenType_OPERATOR:
             part.type = ExprPartType_OP;
             part.data.op = token;
+            ct_parser_consume(p);
             _ct_exprpart_array_append(&parts_array, part);
             break;
 
@@ -283,21 +285,23 @@ ASTNode* ct_grammar_operator_expr(Parser *p) {
         case TokenType_INT_LITERAL:
             part.type = ExprPartType_SUBEXPR;
             part.data.subexpr = _ct_token_wrap_literal(p, token);
+            ct_parser_consume(p);
             _ct_exprpart_array_append(&parts_array, part);
             break;
 
         case TokenType_OPEN_PAREN:
-            ct_parser_rewind_n(p, -1);
             part.type = ExprPartType_SUBEXPR;
             part.data.subexpr = ct_grammar_parens(p);
-            if (part.data.subexpr == 0) {
-                return ct_astnode_new_error(p, STR_CONST("expected a subexpression"));
-            }
+            _ct_exprpart_array_append(&parts_array, part);
+            break;
+
+        case TokenType_LAMBDA:
+            part.type = ExprPartType_SUBEXPR;
+            part.data.subexpr = ct_grammar_lambda(p);
             _ct_exprpart_array_append(&parts_array, part);
             break;
 
         default:
-            ct_parser_rewind_n(p, -1);
             ok = false;
             break;
         }
@@ -309,51 +313,54 @@ ASTNode* ct_grammar_operator_expr(Parser *p) {
     _ct_collapse_expr_parts(&parts_array, p);
     IFDEBUG( _ct_print_exprpart_array(&parts_array, parts_array.size); )
 
-    if (parts_array.size != 1) {
-        DocumentError docerr = ct_parser_make_error(p, "", (DocumentRange) { 0 });
-        if (parts_array.size > 0) {
-            ct_document_set_error(
-                &docerr,
-                "invalid expression",
-                ct_document_range_span(
-                    _ct_exprpart_get_range(&parts_array.content[0]),
-                    _ct_exprpart_get_range(&parts_array.content[parts_array.size - 1])
-                )
-            );
-        } else {
-            Token *next = ct_parser_peek(p);
-            if (next != 0) {
-                ct_document_set_error(&docerr, "expected expression, found nothing", next->range);
-            } else {
-                ct_document_set_error(&docerr, "empty expression ??", ct_parser_current_range(p));
-            }
+    if (parts_array.size == 0) {
+        _ct_exprpart_array_destroy(&parts_array);
+        return ct_astnode_new_error(p, STR_CONST("expected an expression, found nothing"));
+    }
+
+    if (parts_array.size == 1) {
+        ASTNode *result = 0;
+
+        switch (parts_array.content[0].type) {
+            case ExprPartType_SUBEXPR:
+                result = parts_array.content[0].data.subexpr;
+                break;
+
+            case ExprPartType_OP:
+                result = ct_astnode_new_error_ranged(
+                    p, STR_CONST("expected an expression, found an operator"),
+                    parts_array.content[0].data.op->range
+                );
+                break;
+
+            default:
+                die("[INTERNAL] bad value in parts_array.content[0].type");
+                result = ct_astnode_new_error(p, STR_EMPTY);
+                break;
         }
 
         _ct_exprpart_array_destroy(&parts_array);
-        return ct_astnode_new_error_from(p, docerr);
+        return result;
     }
 
-    ASTNode *result = 0;
+    // more than one subexpression – must be function application then
+    ASTNode* result = ct_astnode_new(p, ASTNodeType_FNCALL);
+    ct_astnode_alloc_children(p, result, parts_array.size);
+    result->n_children = parts_array.size;
 
-    switch (parts_array.content[0].type) {
-        case ExprPartType_SUBEXPR:
-            result = parts_array.content[0].data.subexpr;
-            break;
-
-        case ExprPartType_OP:
-            result = ct_astnode_new_error_ranged(
-                p, STR_CONST("invalid expression"),
-                parts_array.content[0].data.op->range
+    for (size_t i = 0; i < parts_array.size; i++) {
+        ExprPart part = parts_array.content[i];
+        if (part.type == ExprPartType_OP) {
+            result->children[i] = ct_astnode_new_error_ranged(
+                p, STR_CONST("expected an expression, found an operator"), part.data.op->range
             );
-            break;
+            continue;
+        }
 
-        default:
-            die("[INTERNAL] bad value in parts_array.content[0].type");
-            result = ct_astnode_new_error(p, STR_EMPTY);
-            break;
+        if (part.type != ExprPartType_SUBEXPR) { die("unknown ExprPartType"); }
+        result->children[i] = part.data.subexpr;
     }
 
-    _ct_exprpart_array_destroy(&parts_array);
     return result;
 }
 
@@ -376,6 +383,42 @@ ASTNode* ct_grammar_parens(Parser *p) {
     return expr;
 }
 
+ASTNode* ct_grammar_lambda(Parser *p) {
+    REQUIRE_TOKEN(TokenType_LAMBDA, "expected a '\\'")
+
+    ASTNode *result = ct_astnode_new(p, ASTNodeType_LAMBDA);
+    result->data.lambda = (ASTLambdaData) { 0 };
+    strarr_init(&result->data.lambda.argnames, 4, p->arena);
+
+    Token *next_arg = 0;
+    while ((next_arg = ct_parser_consume_if(p, TokenType_IDENT)) != 0) {
+        strarr_append(&result->data.lambda.argnames, next_arg->data.ident);
+    }
+
+    REQUIRE_TOKEN(TokenType_DOT, "expected a '.'")
+
+    ASTNode *body = ct_grammar_expr(p);
+    ct_astnode_append_child(p, result, body);
+    return result;
+}
+
 ASTNode* ct_grammar_expr(Parser *p) {
-    return ct_grammar_operator_expr(p);
+    Token *next = ct_parser_peek(p);
+    if (next == 0) {
+        return ct_astnode_new_error(p, STR_CONST("expected an expression"));
+    }
+
+    switch (next->type) {
+        // DO NOT DO THIS:
+        // case TokenType_OPEN_PAREN:
+        //     return ct_grammar_parens(p);
+        // it will stop at the first closing paren, when the expression might be longer!
+        // e.g. "(1 + 2) + 3" will yield a node for "(1 + 2)", and leave "+ 3" outside the expression
+
+        case TokenType_LAMBDA:
+            return ct_grammar_lambda(p);
+
+        default:
+            return ct_grammar_operator_expr(p);
+    }
 }

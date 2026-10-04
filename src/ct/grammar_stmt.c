@@ -38,19 +38,11 @@ void _ct_skip_until_top_level_decl_again(Parser *p) {
 }
 
 ASTNode* _ct_grammar_let_declaration(Parser *p) {
-    if (ct_parser_consume_keyword(p, Keyword_LET) == 0) {
-        return ct_astnode_new_error(p, STR_CONST("expected a 'let' keyword"));
-    }
+    REQUIRE_KEYWORD(Keyword_LET, "expected a 'let' keyword")
 
-    Token *var = ct_parser_consume_if(p, TokenType_IDENT);
-    if (var == 0) {
-        return ct_astnode_new_error(p, STR_CONST("expected a variable name"));
-    }
-
-    Token *assignment = ct_parser_consume_if(p, TokenType_ASSIGNMENT);
-    if (assignment == 0) {
-        return ct_astnode_new_error(p, STR_CONST("expected an assignment"));
-    }
+    Token *var, *assignment;
+    REQUIRE_AND_SET_TOKEN(var, TokenType_IDENT, "expected a variable name")
+    REQUIRE_AND_SET_TOKEN(assignment, TokenType_ASSIGNMENT, "expected an assignment")
 
     ASTNode *value = ct_grammar_expr(p);
 

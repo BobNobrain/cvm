@@ -46,7 +46,8 @@ size_t str_compc(String str, const char* c_str, size_t n) {
 }
 
 bool str_eqc(String str, const char* c_str) {
-    for (size_t i = 0; i < str.size; i++) {
+    size_t i = 0;
+    for (; i < str.size; i++) {
         if (c_str[i] == '\0') {
             return false;
         }
@@ -54,6 +55,9 @@ bool str_eqc(String str, const char* c_str) {
             return false;
         }
     }
+
+    if (c_str[i] != '\0') { return false; }
+
     return true;
 }
 
