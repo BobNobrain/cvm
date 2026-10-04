@@ -39,7 +39,7 @@ typedef struct DocumentError {
 } DocumentError;
 
 extern void ct_document_set_error(DocumentError *error, char *c_msg, DocumentRange location);
-extern void ct_document_print_error(DocumentError error);
+extern void ct_document_print_error(DocumentError error, Arena *arena);
 
 ARRAY_DECL(DocumentError)
 ARRAY_METHODS_DECL(ct_err_array, DocumentError)
@@ -74,6 +74,7 @@ typedef struct LangConfig {
     OperatorDeclSlice optable;
     String allowed_ident_chars;
     String allowed_operator_chars;
+    String line_comment_start;
 } LangConfig;
 
 extern LangConfig ct_langconfig_create();

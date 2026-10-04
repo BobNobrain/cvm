@@ -97,6 +97,35 @@ int str_index_of(String str, char needle) {
     return -1;
 }
 
+int str_substr_index(String haystack, String needle, size_t start_pos) {
+    if (needle.size > haystack.size) { return -1; }
+
+    size_t n = haystack.size - needle.size + 1;
+    for (size_t i = start_pos; i < n; i++) {
+        bool found = true;
+        for (size_t j = 0; j < needle.size; j++) {
+            if (haystack.content[i + j] != needle.content[j]) {
+                found = false;
+                break;
+            }
+        }
+
+        if (found) { return (int) i; }
+    }
+
+    return -1;
+}
+
+bool str_starts_with(String full, String prefix) {
+    if (prefix.size > full.size) { return false; }
+    for (size_t i = 0; i < prefix.size; i++) {
+        if (full.content[i] != prefix.content[i]) {
+            return false;
+        }
+    }
+    return true;
+}
+
 typedef struct {
     char *content;
     size_t size;
@@ -120,7 +149,7 @@ StringBuilder *strb_new(Arena *arena, size_t cap) {
 
 void strb_append(StringBuilder *sb, const String str) {
     if (sb->size + str.size > sb->capacity) {
-        size_t cap_incr = sb->capacity;
+        size_t cap_incr = sb->capacity / 2;
 
         if (cap_incr == 0) {
             cap_incr = 64;
@@ -174,4 +203,24 @@ String strb_render(StringBuilder *sb) {
     sb->capacity = 0;
 
     return result;
+}
+
+String str_replace_all(String source, String pattern, String replacement, Arena *arena) {
+    size_t result_size_estimate = source.size;
+    if (pattern.size < replacement.size) {
+        result_size_estimate += (replacement.size - pattern.size) * 10;
+    }
+
+    StringBuilder *sb = strb_new(arena, result_size_estimate);
+
+    int next_pattern = -1;
+    size_t cursor = 0;
+
+    while ((next_pattern = str_substr_index(source, pattern, cursor)) >= 0) {
+        strb_append(sb, str_substring(source, cursor, (size_t) next_pattern));
+        strb_append(sb, replacement);
+        cursor = ((size_t) next_pattern) + pattern.size;
+    }
+
+    return strb_render(sb);
 }

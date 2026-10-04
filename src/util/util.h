@@ -81,6 +81,9 @@ extern bool str_eqc(String str, const char* c_str);
 extern bool str_eq(String s1, String s2);
 extern size_t str_parse_uint_dec(String str, unsigned int *into); // TODO: shouldn't be here?
 extern int str_index_of(String str, char needle);
+extern bool str_starts_with(String full, String prefix);
+extern int str_substr_index(String haystack, String needle, size_t start_pos);
+extern String str_replace_all(String source, String pattern, String replacement, Arena *arena);
 
 /** to use in printf and alike:
     printf("the string is '" STR_FMT "'!", STR_FMT_VAL(my_string));

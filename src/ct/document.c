@@ -62,8 +62,10 @@ void ct_document_set_error(DocumentError *error, char *c_msg, DocumentRange loca
     error->location = location;
 }
 
-void ct_document_print_error(DocumentError error) {
+void ct_document_print_error(DocumentError error, Arena *arena) {
     String near = ct_document_substring(error.source, error.location);
+    String escaped = str_replace_all(near, STR_CONST("\n"), STR_CONST("\\n"), arena);
+
     printf(
         STR_FMT "\n  at %zu:%zu-%zu:%zu (near '" STR_FMT "')\n",
         STR_FMT_VAL(error.message),
@@ -71,6 +73,6 @@ void ct_document_print_error(DocumentError error) {
         error.location.start.column,
         error.location.end.line,
         error.location.end.column,
-        STR_FMT_VAL(near)
+        STR_FMT_VAL(escaped)
     );
 }

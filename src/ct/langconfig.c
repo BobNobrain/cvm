@@ -25,6 +25,7 @@ LangConfig ct_langconfig_create() {
     return (LangConfig) {
         .allowed_ident_chars = STR_CONST("_"),
         .allowed_operator_chars = STR_CONST("!@$%^&*-+=<>/:|~"),
+        .line_comment_start = STR_CONST("#"),
         .optable = ct_opdeclslice_of_const(optable, sizeof(optable) / sizeof(OperatorDecl))
     };
 }

@@ -18,9 +18,11 @@ void ct_tokenizer_init(Tokenizer *t, Arena *arena, LangConfig config) {
 }
 
 void ct_tokenizer_push_token(Tokenizer *t, Token token) {
-    if (token.type == TokenType_INVALID &&
+    // this glues together consecutive tokens of the same type
+    // for newlines and invalid tokens
+    if ((token.type == TokenType_INVALID || token.type == TokenType_NEWLINE) &&
         t->tokens.size > 0 &&
-        t->tokens.content[t->tokens.size - 1].type == TokenType_INVALID
+        t->tokens.content[t->tokens.size - 1].type == token.type
     ) {
         t->tokens.content[t->tokens.size - 1].range.end = token.range.end;
         return;
@@ -64,6 +66,26 @@ size_t _ct_tokenizer_scan_ws(Tokenizer *t) {
 
         default:
             return i;
+        }
+    }
+
+    return t->source.size;
+}
+
+size_t _ct_tokenizer_scan_line_comment(Tokenizer *t) {
+    if (!str_starts_with(t->source, t->config.line_comment_start)) {
+        return 0;
+    }
+
+    for (size_t i = t->config.line_comment_start.size; i < t->source.size; i++) {
+        char next = t->source.content[i];
+
+        switch (next) {
+        case '\r':
+        case '\n':
+            return i;
+
+        default: break;
         }
     }
 
@@ -357,6 +379,14 @@ void ct_tokenizer_run(Tokenizer *t, String source, DocumentErrorArray *errors) {
             ct_document_pos_track(&t->cursor, ws_consumed);
 
             if (t->source.size == 0) { break; }
+        }
+
+        size_t comment_consumed = _ct_tokenizer_scan_line_comment(t);
+        if (comment_consumed > 0) {
+            _ct_tokenizer_consume_source(t, comment_consumed);
+            ct_document_pos_track(&t->cursor, comment_consumed);
+
+            continue;
         }
 
         TRY_TOKEN_SCANNER(_ct_tokenizer_scan_number)

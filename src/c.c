@@ -34,7 +34,7 @@ int main() {
     if (p->errors.size > 0) {
         printf("\nparse failed: \n");
         for (size_t i = 0; i < p->errors.size; i++) {
-            ct_document_print_error(p->errors.content[i]);
+            ct_document_print_error(p->errors.content[i], p->arena);
         }
 
         arena_destroy(arena);
