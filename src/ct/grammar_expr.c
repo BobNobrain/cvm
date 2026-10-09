@@ -207,8 +207,7 @@ void _ct_collapse_expr_parts(ExprPartArray *parts_array, Parser *p) {
                 opnode->data.unop = decl;
 
                 ASTNode *operand = operand_part->data.subexpr;
-                opnode->children[0] = operand;
-                opnode->n_children = 1;
+                ct_astnode_append_child(opnode, operand);
 
                 _ct_exprpart_array_cut(parts_array, part_idx, 1);
                 size_t rewrite_idx = is_right_assoc ? part_idx : part_idx - 1;
@@ -248,9 +247,8 @@ void _ct_collapse_expr_parts(ExprPartArray *parts_array, Parser *p) {
 
                 ASTNode *left_operand = left_operand_part->data.subexpr;
                 ASTNode *right_operand = right_operand_part->data.subexpr;
-                opnode->children[0] = left_operand;
-                opnode->children[1] = right_operand;
-                opnode->n_children = 2;
+                ct_astnode_append_child(opnode, left_operand);
+                ct_astnode_append_child(opnode, right_operand);
 
                 _ct_exprpart_array_cut(parts_array, part_idx - 1, 2);
                 *_ct_exprpart_array_at(parts_array, part_idx - 1) = opnode_part;
@@ -347,20 +345,19 @@ ASTNode* ct_grammar_operator_expr(Parser *p) {
 
     // more than one subexpression – must be function application then
     ASTNode* result = ct_astnode_new(p, ASTNodeType_FNCALL);
-    ct_astnode_alloc_children(p, result, parts_array.size);
-    result->n_children = parts_array.size;
 
     for (size_t i = 0; i < parts_array.size; i++) {
         ExprPart part = parts_array.content[i];
         if (part.type == ExprPartType_OP) {
-            result->children[i] = ct_astnode_new_error_ranged(
-                p, STR_CONST("expected an expression, found an operator"), part.data.op->range
-            );
+            ct_astnode_append_child(result, ct_astnode_new_error_ranged(
+                p, STR_CONST("expected an expression, found an operator"),
+                part.data.op->range
+            ));
             continue;
         }
 
         if (part.type != ExprPartType_SUBEXPR) { die("unknown ExprPartType"); }
-        result->children[i] = part.data.subexpr;
+        ct_astnode_append_child(result, part.data.subexpr);
     }
 
     return result;
@@ -441,7 +438,7 @@ ASTNode* ct_grammar_lambda(Parser *p) {
         if (next->type == TokenType_DOT) { break; }
 
         ASTNode *arg = _ct_grammar_lambda_arg(p);
-        ct_astnode_append_child(p, result, arg);
+        ct_astnode_append_child(result, arg);
 
         if (!ct_astnode_is_error(arg)) {
             result->data.lambda.n_args += 1;
@@ -455,7 +452,7 @@ ASTNode* ct_grammar_lambda(Parser *p) {
     REQUIRE_TOKEN(TokenType_DOT, "expected a '.'")
 
     ASTNode *body = ct_grammar_expr(p);
-    ct_astnode_append_child(p, result, body);
+    ct_astnode_append_child(result, body);
     return result;
 }
 

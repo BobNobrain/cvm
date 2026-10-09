@@ -81,8 +81,10 @@ void _ct_parser_collect_errors(Parser *p, ASTNode *node) {
         });
     }
 
-    for (size_t i = 0; i < node->n_children; i++) {
-        _ct_parser_collect_errors(p, node->children[i]);
+    ASTNode *it = node->first_child;
+    while (it != 0) {
+        _ct_parser_collect_errors(p, it);
+        it = it->next_sibling;
     }
 }
 

@@ -12,29 +12,6 @@ ASTNode* ct_astnode_new(Parser *parser, ASTNodeType type) {
     *new_node = (ASTNode) { 0 };
     new_node->type = type;
 
-    new_node->n_children = 0;
-    new_node->children_cap = 0;
-    new_node->children = 0;
-
-    switch (type) {
-    case ASTNodeType_LAMBDA:
-        ct_astnode_alloc_children(parser, new_node, 4);
-        break;
-
-    case ASTNodeType_BINOP:
-        ct_astnode_alloc_children(parser, new_node, 2);
-        break;
-
-    case ASTNodeType_UNOP:
-    case ASTNodeType_ASSIGNMENT:
-    case ASTNodeType_ENTRY:
-        ct_astnode_alloc_children(parser, new_node, 1);
-        break;
-
-    default:
-        break;
-    }
-
     return new_node;
 }
 
@@ -57,32 +34,35 @@ ASTNode* ct_astnode_new_error_ranged(Parser *parser, String msg, DocumentRange r
     return e;
 }
 
-void ct_astnode_alloc_children(Parser *p, ASTNode *parent, size_t n) {
-    if (parent->children_cap == 0) {
-        parent->children = arena_alloc(p->arena, sizeof(ASTNode*) * n);
-    } else {
-        parent->children = arena_realloc(
-            p->arena,
-            parent->children,
-            sizeof(ASTNode*) * parent->children_cap,
-            sizeof(ASTNode*) * (parent->children_cap + n)
-        );
+void ct_astnode_append_child(ASTNode *parent, ASTNode *child) {
+    if (parent->first_child == 0) {
+        parent->first_child = child;
+        return;
     }
-    parent->children_cap += n;
+
+    ASTNode *last = ct_astnode_find_last_child(parent);
+    last->next_sibling = child;
 }
-void ct_astnode_append_child(Parser *p, ASTNode *parent, ASTNode *child) {
-    if (parent->children_cap == 0) {
-        ct_astnode_alloc_children(p, parent, 16);
-    } else if (parent->n_children >= parent->children_cap) {
-        size_t cap_increase = parent->children_cap;
-        if (cap_increase < 16) { cap_increase = 16; }
-        if (cap_increase >= 128) { cap_increase = 128; }
 
-        ct_astnode_alloc_children(p, parent, cap_increase);
+size_t ct_astnode_count_children(ASTNode *parent) {
+    ASTNode *it = parent->first_child;
+    size_t result = 0;
+    while (it) {
+        result += 1;
+        it = it->next_sibling;
+    }
+    return result;
+}
+
+ASTNode* ct_astnode_find_last_child(ASTNode *parent) {
+    if (parent->first_child == 0) { return 0; }
+
+    ASTNode *it = parent->first_child;
+    while (it->next_sibling != 0) {
+        it = it->next_sibling;
     }
 
-    parent->children[parent->n_children] = child;
-    parent->n_children += 1;
+    return it;
 }
 
 bool ct_astnode_is_error(ASTNode *node) {
@@ -160,13 +140,11 @@ void ct_astnode_print(ASTNode *node, size_t indent) {
         printf(" :");
         ct_type_print(node->value_type);
     }
-
-    if (node->n_children > 0) {
-        printf(" (%zu children)", node->n_children);
-    }
     printf("\n");
 
-    for (size_t i = 0; i < node->n_children; i++) {
-        ct_astnode_print(node->children[i], indent + 1);
+    ASTNode *it = node->first_child;
+    while (it != 0) {
+        ct_astnode_print(it, indent + 1);
+        it = it->next_sibling;
     }
 }

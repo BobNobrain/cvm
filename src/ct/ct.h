@@ -215,31 +215,33 @@ typedef struct ASTLambdaArgData {
 } ASTLambdaArgData;
 
 struct ASTNode {
-    ASTNodeType type;
-    // A dynamic array of child nodes. Use ct_astnode_append_child to add a child
-    ASTNode **children;
-    size_t n_children;
-    size_t children_cap;
+    ASTNode *first_child;
+    ASTNode *next_sibling;
+
+    // What document range corresponds to this node
     DocumentRange range;
     // The defining token of this node (main keyword, or operator, or the single token that generates the node)
     Token *base;
+
     // If this node represents a value (or an expression), what type does it have (see LmbProgramType)
     LmbProgramType *value_type;
+    // TODO: type context?
 
-    #define AST_TYPES_LIST_X(CONST_NAME, DATA_TYPE, FIELD_NAME) DATA_TYPE FIELD_NAME;
     // Additional data, as defined by .type
     union {
-        AST_TYPES_LIST(AST_TYPES_LIST_X)
+        AST_TYPES_LIST(UNION_FIELDS)
     } data;
-    #undef AST_TYPES_LIST_X
+    ASTNodeType type;
 };
 
 extern ASTNode* ct_astnode_new(Parser *p, ASTNodeType type);
 extern ASTNode* ct_astnode_new_error(Parser *p, String msg);
 extern ASTNode* ct_astnode_new_error_from(Parser *p, DocumentError docerr);
 extern ASTNode* ct_astnode_new_error_ranged(Parser *parser, String msg, DocumentRange range);
-extern void ct_astnode_alloc_children(Parser *p, ASTNode *parent, size_t n);
-extern void ct_astnode_append_child(Parser *p, ASTNode *parent, ASTNode *child);
+
+extern void ct_astnode_append_child(ASTNode *parent, ASTNode *child);
+extern size_t ct_astnode_count_children(ASTNode *parent);
+extern ASTNode* ct_astnode_find_last_child(ASTNode *parent);
 extern void ct_astnode_print(ASTNode *node, size_t indent);
 extern bool ct_astnode_is_error(ASTNode *node);
 

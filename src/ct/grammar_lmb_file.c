@@ -54,8 +54,7 @@ ASTNode* _ct_grammar_let_declaration(Parser *p) {
     ASTNode *result = ct_astnode_new(p, ASTNodeType_ASSIGNMENT);
     result->data.assignment.ident_token = var;
     result->data.assignment.identifier = var->data.ident;
-    result->children[0] = value;
-    result->n_children = 1;
+    ct_astnode_append_child(result, value);
     return result;
 }
 
@@ -66,7 +65,7 @@ ASTNode* _ct_grammar_entry_declaration(Parser *p) {
     ASTNode *entry_fn = ct_grammar_lambda(p);
     ASTNode *entry = ct_astnode_new(p, ASTNodeType_ENTRY);
     entry->base = entry_kw;
-    ct_astnode_append_child(p, entry, entry_fn);
+    ct_astnode_append_child(entry, entry_fn);
 
     if (ct_astnode_is_error(entry_fn)) {
         _ct_skip_until_top_level_decl_again(p);
@@ -95,7 +94,7 @@ ASTNode* ct_grammar_lmb_file(Parser *p) {
         Token *start = &p->input.content[0];
         ASTNode *next = _ct_grammar_lmb_toplevel(p);
 
-        ct_astnode_append_child(p, file_content, next);
+        ct_astnode_append_child(file_content, next);
 
         if (ct_astnode_is_error(next)) {
             // nothing was consumed, and all options were exhausted;

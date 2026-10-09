@@ -83,8 +83,10 @@ static LmbProgramType PRIMITIVE_F32 = (LmbProgramType) {
 
 size_t _ct_assign_children_types(ASTNode *node, ProgramTypeContext *ctx) {
     size_t n_total = 0;
-    for (size_t i = 0; i < node->n_children; i++) {
-        n_total += _ct_assign_types(node->children[i], ctx);
+    ASTNode *it = node->first_child;
+    while (it != 0) {
+        n_total += _ct_assign_types(it, ctx);
+        it = it->next_sibling;
     }
     return n_total;
 }
@@ -115,12 +117,12 @@ size_t _ct_assign_binop_type(ASTNode *node, ProgramTypeContext *ctx) {
     if (node->value_type != 0) { return 0; }
 
     size_t n_assigned = _ct_assign_children_types(node, ctx);
-    if (node->n_children != 2) {
+    if (ct_astnode_count_children(node) != 2) {
         return n_assigned;
     }
 
-    LmbProgramType *ltype = node->children[0]->value_type;
-    LmbProgramType *rtype = node->children[1]->value_type;
+    LmbProgramType *ltype = node->first_child->value_type;
+    LmbProgramType *rtype = node->first_child->next_sibling->value_type;
 
     // non-primitives are not supported for operators yet
     if (ltype->kind != LmbProgramTypeKind_PRIMITIVE) {
@@ -194,20 +196,24 @@ size_t _ct_assign_lambda_arg_type(ASTNode *node, ProgramTypeContext *ctx) {
 
 size_t _ct_assign_lambda_types(ASTNode *node, ProgramTypeContext *ctx) {
     if (node->value_type != 0) { return 0; }
-    if (node->n_children == 0) { return 0; }
+    if (node->first_child == 0) { return 0; }
 
     size_t ctx_size = ctx->symbols.size;
     size_t n_assigned = 0;
     LmbProgramType *lambda_type = arena_alloc(ctx->arena, sizeof(LmbProgramType));
-    LmbProgramType **arg_types = arena_alloc(ctx->arena, sizeof(LmbProgramType*) * (node->n_children - 1));
+    LmbProgramType **arg_types = arena_alloc(
+        ctx->arena,
+        sizeof(LmbProgramType*) * (ct_astnode_count_children(node) - 1)
+    );
 
     *lambda_type = (LmbProgramType) {
         .kind = LmbProgramTypeKind_ARROW,
         .data = { .arrow = { .n_args = 0, .arg_types = arg_types, .ret_type = 0 } },
     };
 
-    for (size_t i = 0; i < node->n_children; i++) {
-        ASTNode *arg = node->children[i];
+    size_t i = 0;
+    for (ASTNode *child = node->first_child; child != 0; child = child->next_sibling, ++i) {
+        ASTNode *arg = child;
 
         if (arg->type != ASTNodeType_LAMBDA_ARG) {
             continue;
@@ -235,7 +241,7 @@ size_t _ct_assign_lambda_types(ASTNode *node, ProgramTypeContext *ctx) {
     n_assigned += _ct_assign_children_types(node, ctx);
     ctx->symbols.size = ctx_size; // pop off all the inner created name-type associations
 
-    ASTNode *lambda_body = node->children[node->n_children - 1];
+    ASTNode *lambda_body = ct_astnode_find_last_child(node);
     if (!ct_astnode_is_error(lambda_body) && lambda_body->type != ASTNodeType_LAMBDA_ARG) {
         LmbProgramType *ret_type = lambda_body->value_type;
 
@@ -256,7 +262,7 @@ size_t _ct_assign_assignment_types(ASTNode *node, ProgramTypeContext *ctx) {
             n_assigned += 1;
         }
 
-        node->value_type = node->children[0]->value_type;
+        node->value_type = node->first_child->value_type;
 
         if (node->value_type != 0) {
             _ct_symtable_append(&ctx->symbols, (ProgramSymbol) {
@@ -292,9 +298,9 @@ size_t _ct_assign_types(ASTNode *node, ProgramTypeContext *ctx) {
 
     case ASTNodeType_UNOP:
         n_assigned += _ct_assign_children_types(node, ctx);
-        if (node->n_children > 0) {
+        if (node->first_child != 0) {
             // TODO: this is not always the case
-            node->value_type = node->children[0]->value_type;
+            node->value_type = node->first_child->value_type;
             n_assigned += 1;
         }
     break;
