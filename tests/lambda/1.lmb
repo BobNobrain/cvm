@@ -1,9 +1,13 @@
 let x = 10 * 5
 let y = 11.0 / 2
 let z =
-42
+777
 let w = -3 # i am a comment
 
 #whoo-hoo functions!
-let f = \x y. (42 - x) * y
+let f = \x:i32 y:i32. (42 - x) * y
+#let f_generic = \t:(Type, in Primitive, has +) x:t y:t . x + y
 let f_p = f (10 + 2)
+
+entry \io. io 42
+entry 67

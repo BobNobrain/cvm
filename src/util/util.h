@@ -241,6 +241,22 @@ BUILTIN_ARRAYS_LIST(BUILTIN_ARRAYS_DECLARE)
 #undef BUILTIN_ARRAYS_DECLARE
 
 
+/** tagged unions macro helpers */
+/**
+ * Usage:
+ * typedef enum MyEnum {
+ *     MY_TAGGED_UNION_X_MACRO(ENUM_MEMBER)
+ * } MyEnum;
+ */
+#define ENUM_MEMBERS(CONST_NAME, TYPE, FIELD_NAME) CONST_NAME,
+#define UNION_FIELDS(CONST_NAME, TYPE, FIELD_NAME) TYPE FIELD_NAME;
+#define TAGGED_UNION(ENUM_NAME, TU_X_MACRO) \
+    ENUM_NAME type; \
+    union { \
+        TU_X_MACRO(UNION_FIELDS) \
+    } data;
+
+
 #ifndef UTIL_INTERNAL
 #undef BUILTIN_ARRAYS_LIST
 #endif

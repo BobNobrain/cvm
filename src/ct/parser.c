@@ -103,6 +103,7 @@ void ct_parser_parse(Parser *p, String source, ParserGrammar grammar) {
     p->input = tokens;
 
     p->root = grammar(p);
+    ct_parser_assign_types(p);
 
     printf("AST:\n");
     ct_astnode_print(p->root, 0);

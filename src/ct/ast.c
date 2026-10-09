@@ -9,20 +9,25 @@
 ASTNode* ct_astnode_new(Parser *parser, ASTNodeType type) {
     ASTNode *new_node = arena_alloc(parser->arena, sizeof(*new_node));
 
+    *new_node = (ASTNode) { 0 };
     new_node->type = type;
-    new_node->base = 0;
+
     new_node->n_children = 0;
     new_node->children_cap = 0;
     new_node->children = 0;
 
     switch (type) {
+    case ASTNodeType_LAMBDA:
+        ct_astnode_alloc_children(parser, new_node, 4);
+        break;
+
     case ASTNodeType_BINOP:
-    case ASTNodeType_ASSIGNMENT:
         ct_astnode_alloc_children(parser, new_node, 2);
         break;
 
     case ASTNodeType_UNOP:
-    case ASTNodeType_LAMBDA:
+    case ASTNodeType_ASSIGNMENT:
+    case ASTNodeType_ENTRY:
         ct_astnode_alloc_children(parser, new_node, 1);
         break;
 
@@ -115,14 +120,17 @@ void ct_astnode_print(ASTNode *node, size_t indent) {
         printf("BOOL %d", node->data.lbool);
         break;
     case ASTNodeType_IDENT:
-        printf("IDENT " STR_FMT, STR_FMT_VAL(node->data.ident));
+        printf("IDENT " STR_FMT, STR_FMT_VAL(node->data.ident.name));
         break;
     case ASTNodeType_LAMBDA:
-        printf("LAMBDA (%zu) \\", node->data.lambda.argnames.size);
-        for (size_t i = 0; i < node->data.lambda.argnames.size; i++) {
-            printf(STR_FMT " ", STR_FMT_VAL(node->data.lambda.argnames.content[i]));
-        }
-        printf(". ");
+        printf("LAMBDA (%zu) ", node->data.lambda.n_args);
+        break;
+    case ASTNodeType_LAMBDA_ARG:
+        printf(
+            "ARG " STR_FMT ":" STR_FMT,
+            STR_FMT_VAL(node->data.lambda_arg.name),
+            STR_FMT_VAL(node->data.lambda_arg.type)
+        );
         break;
     case ASTNodeType_BINOP:
         printf("BINOP " STR_FMT, STR_FMT_VAL(node->base->data.op));
@@ -131,10 +139,13 @@ void ct_astnode_print(ASTNode *node, size_t indent) {
         printf("UNOP " STR_FMT, STR_FMT_VAL(node->base->data.op));
         break;
     case ASTNodeType_FNCALL:
-        printf("FNCALL ");
+        printf("FNCALL");
         break;
     case ASTNodeType_ASSIGNMENT:
         printf("ASSIGNMENT " STR_FMT " =", STR_FMT_VAL(node->data.assignment.identifier));
+        break;
+    case ASTNodeType_ENTRY:
+        printf("ENTRY");
         break;
     case ASTNodeType_LMB_FILE:
         printf(".LMB FILE");
@@ -143,6 +154,11 @@ void ct_astnode_print(ASTNode *node, size_t indent) {
     default:
         printf("UNKNOWN");
         break;
+    }
+
+    if (node->value_type != 0) {
+        printf(" :");
+        ct_type_print(node->value_type);
     }
 
     if (node->n_children > 0) {

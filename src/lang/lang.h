@@ -15,6 +15,29 @@
 typedef size_t MemPtr;
 
 
+/** VM-level primitives */
+#define PRIMITIVE_LIST(X) \
+    X(PrimitiveType_I32, int32_t, i32) \
+    X(PrimitiveType_F32, float, f32)
+
+#define ENUM_MEMBER(CONST_NAME, TYPE, FIELD_NAME) CONST_NAME,
+typedef enum PrimitiveType {
+    PRIMITIVE_LIST(ENUM_MEMBER)
+} PrimitiveType;
+#undef ENUM_MEMBER
+
+#define UNION_MEMBER(CONST_NAME, TYPE, FIELD_NAME) TYPE FIELD_NAME;
+typedef struct PrimitiveValue {
+    PrimitiveType type;
+    union {
+        PRIMITIVE_LIST(UNION_MEMBER)
+    } data;
+} PrimitiveValue;
+#undef UNION_MEMBER
+
+extern size_t lang_primitive_sizeof(PrimitiveType type);
+
+
 /** Value types */
 #define VALUE_TYPE_LIST(X) \
     X(V_BOOL, BoolValue, boolv) \
@@ -184,6 +207,7 @@ extern void lang_program_finish(ProgramWriter *from, Program *into);
 /** Hiding all internal macros */
 #ifndef LANG_INTERNAL
 #undef VALUE_TYPE_LIST
+#undef PRIMITIVE_LIST
 #endif
 
 #endif // LANG_H

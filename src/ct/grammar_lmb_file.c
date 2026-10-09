@@ -26,7 +26,7 @@ void _ct_skip_until_top_level_decl_again(Parser *p) {
     while ((next = ct_parser_peek(p)) != 0) {
         switch (next->type) {
             case TokenType_KEYWORD:
-                if (next->data.keyword == Keyword_LET) {
+                if (next->data.keyword == Keyword_LET || next->data.keyword == Keyword_ENTRY) {
                     return;
                 }
 
@@ -59,6 +59,33 @@ ASTNode* _ct_grammar_let_declaration(Parser *p) {
     return result;
 }
 
+ASTNode* _ct_grammar_entry_declaration(Parser *p) {
+    Token *entry_kw = ct_parser_peek(p);
+    REQUIRE_KEYWORD(Keyword_ENTRY, "expected an 'entry' keyword")
+
+    ASTNode *entry_fn = ct_grammar_lambda(p);
+    ASTNode *entry = ct_astnode_new(p, ASTNodeType_ENTRY);
+    entry->base = entry_kw;
+    ct_astnode_append_child(p, entry, entry_fn);
+
+    if (ct_astnode_is_error(entry_fn)) {
+        _ct_skip_until_top_level_decl_again(p);
+
+        entry_fn->range = ct_document_range_span(entry_fn->range, ct_parser_current_range(p));
+    }
+
+    return entry;
+}
+
+ASTNode* _ct_grammar_lmb_toplevel(Parser *p) {
+    GRAMMAR_ONEOF_START
+
+    GRAMMAR_ONEOF_TRY(_ct_grammar_let_declaration);
+    GRAMMAR_ONEOF_TRY(_ct_grammar_entry_declaration);
+
+    return ct_astnode_new_error(p, STR_CONST("expected either 'let' or 'entry' declaration at top level"));
+}
+
 ASTNode* ct_grammar_lmb_file(Parser *p) {
     _ct_skip_newlines(p);
 
@@ -66,7 +93,8 @@ ASTNode* ct_grammar_lmb_file(Parser *p) {
 
     while (p->input.size > 0) {
         Token *start = &p->input.content[0];
-        ASTNode *next =_ct_grammar_let_declaration(p);
+        ASTNode *next = _ct_grammar_lmb_toplevel(p);
+
         ct_astnode_append_child(p, file_content, next);
 
         if (ct_astnode_is_error(next)) {

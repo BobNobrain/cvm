@@ -244,6 +244,9 @@ TokenScannerResult _ct_tokenizer_scan_builtin_op(Tokenizer *t, Token *into) {
     case '=':
         into->type = TokenType_ASSIGNMENT;
         break;
+    case ':':
+        into->type = TokenType_COLON;
+        break;
 
     default:
         return _ct_result_fail();
@@ -272,6 +275,9 @@ void ct_tokenizer_parse_token(Token *token, String source, DocumentErrorArray *e
         } else if (str_eqc(token_content, "else")) {
             token->type = TokenType_KEYWORD;
             token->data.keyword = Keyword_ELSE;
+        } else if (str_eqc(token_content, "entry")) {
+            token->type = TokenType_KEYWORD;
+            token->data.keyword = Keyword_ENTRY;
         } else {
             token->data.ident = token_content;
         }
@@ -324,9 +330,10 @@ void ct_tokenizer_parse_token(Token *token, String source, DocumentErrorArray *e
             token->type = TokenType_ASSIGNMENT;
         } else if (str_eq(token->data.op, STR_CONST("\\"))) {
             token->type = TokenType_LAMBDA;
-        }
-         else if (str_eq(token->data.op, STR_CONST("."))) {
+        } else if (str_eq(token->data.op, STR_CONST("."))) {
             token->type = TokenType_DOT;
+        } else if (str_eq(token->data.op, STR_CONST(":"))) {
+            token->type = TokenType_COLON;
         }
         break;
 
@@ -459,6 +466,10 @@ void ct_token_to_string(Token token, StringBuilder *sb) {
         strb_appendc(sb, ". ");
         break;
 
+    case TokenType_COLON:
+        strb_appendc(sb, ": ");
+        break;
+
     case TokenType_ASSIGNMENT:
         strb_appendc(sb, "= ");
         break;
@@ -468,6 +479,7 @@ void ct_token_to_string(Token token, StringBuilder *sb) {
             case Keyword_LET: strb_appendc(sb, "LET "); break;
             case Keyword_IF: strb_appendc(sb, "IF "); break;
             case Keyword_ELSE: strb_appendc(sb, "ELSE "); break;
+            case Keyword_ENTRY: strb_appendc(sb, "ENTRY "); break;
             default: strb_appendc(sb, "<unknown kw> "); break;
         }
         break;

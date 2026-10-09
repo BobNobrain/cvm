@@ -1,6 +1,6 @@
 #define GRAMMAR_ONEOF_START ParserRewindPoint saved_pos = { .input = p->input }; ASTNode *result = 0;
 #define GRAMMAR_ONEOF_TRY(GRAMMAR) \
-    result = GRAMMAR(p, docerr);        \
+    result = GRAMMAR(p);                \
     if (!ct_astnode_is_error(result)) { \
         return result;                  \
     } else {                            \

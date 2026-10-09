@@ -2,24 +2,24 @@
 
 LangConfig ct_langconfig_create() {
     static OperatorDecl optable[] = {
-        { .op = STR_CONST("!"),  .type = OperatorType_UNARY_RIGHT,    .priority = 150} ,
-        { .op = STR_CONST("-"),  .type = OperatorType_UNARY_RIGHT,    .priority = 150} ,
-        { .op = STR_CONST("+"),  .type = OperatorType_UNARY_RIGHT,    .priority = 150} ,
+        { .op = STR_CONST("!"),  .type = OperatorType_UNARY_RIGHT,    .priority = 150, .variant = OperatorVariant_UNARY_NOT    },
+        { .op = STR_CONST("-"),  .type = OperatorType_UNARY_RIGHT,    .priority = 150, .variant = OperatorVariant_UNARY_MINUS  },
+        { .op = STR_CONST("+"),  .type = OperatorType_UNARY_RIGHT,    .priority = 150, .variant = OperatorVariant_UNARY_PLUS   },
 
-        { .op = STR_CONST("^"),  .type = OperatorType_BINARY_RIGHT,   .priority =  90} ,
-        { .op = STR_CONST("*"),  .type = OperatorType_BINARY_LEFT,    .priority =  80} ,
-        { .op = STR_CONST("/"),  .type = OperatorType_BINARY_LEFT,    .priority =  80} ,
-        { .op = STR_CONST("%"),  .type = OperatorType_BINARY_NOASSOC, .priority =  80} ,
-        { .op = STR_CONST("+"),  .type = OperatorType_BINARY_LEFT,    .priority =  70} ,
-        { .op = STR_CONST("-"),  .type = OperatorType_BINARY_LEFT,    .priority =  70} ,
-        { .op = STR_CONST("<"),  .type = OperatorType_BINARY_NOASSOC, .priority =  60} ,
-        { .op = STR_CONST(">"),  .type = OperatorType_BINARY_NOASSOC, .priority =  60} ,
-        { .op = STR_CONST(">="), .type = OperatorType_BINARY_NOASSOC, .priority =  60} ,
-        { .op = STR_CONST("<="), .type = OperatorType_BINARY_NOASSOC, .priority =  60} ,
-        { .op = STR_CONST("=="), .type = OperatorType_BINARY_LEFT,    .priority =  50} ,
-        { .op = STR_CONST("<>"), .type = OperatorType_BINARY_LEFT,    .priority =  50} ,
-        { .op = STR_CONST("&&"), .type = OperatorType_BINARY_LEFT,    .priority =  40} ,
-        { .op = STR_CONST("||"), .type = OperatorType_BINARY_LEFT,    .priority =  40}
+        { .op = STR_CONST("^"),  .type = OperatorType_BINARY_RIGHT,   .priority =  90, .variant = OperatorVariant_BINARY_POWER },
+        { .op = STR_CONST("*"),  .type = OperatorType_BINARY_LEFT,    .priority =  80, .variant = OperatorVariant_BINARY_MUL   },
+        { .op = STR_CONST("/"),  .type = OperatorType_BINARY_LEFT,    .priority =  80, .variant = OperatorVariant_BINARY_DIV   },
+        { .op = STR_CONST("%"),  .type = OperatorType_BINARY_NOASSOC, .priority =  80, .variant = OperatorVariant_BINARY_REM   },
+        { .op = STR_CONST("+"),  .type = OperatorType_BINARY_LEFT,    .priority =  70, .variant = OperatorVariant_BINARY_ADD   },
+        { .op = STR_CONST("-"),  .type = OperatorType_BINARY_LEFT,    .priority =  70, .variant = OperatorVariant_BINARY_SUB   },
+        { .op = STR_CONST("<"),  .type = OperatorType_BINARY_NOASSOC, .priority =  60, .variant = OperatorVariant_BINARY_LT    },
+        { .op = STR_CONST(">"),  .type = OperatorType_BINARY_NOASSOC, .priority =  60, .variant = OperatorVariant_BINARY_GT    },
+        { .op = STR_CONST("<="), .type = OperatorType_BINARY_NOASSOC, .priority =  60, .variant = OperatorVariant_BINARY_LTE   },
+        { .op = STR_CONST(">="), .type = OperatorType_BINARY_NOASSOC, .priority =  60, .variant = OperatorVariant_BINARY_GTE   },
+        { .op = STR_CONST("=="), .type = OperatorType_BINARY_LEFT,    .priority =  50, .variant = OperatorVariant_BINARY_EQ    },
+        { .op = STR_CONST("<>"), .type = OperatorType_BINARY_LEFT,    .priority =  50, .variant = OperatorVariant_BINARY_NEQ   },
+        { .op = STR_CONST("&&"), .type = OperatorType_BINARY_LEFT,    .priority =  40, .variant = OperatorVariant_BINARY_AND   },
+        { .op = STR_CONST("||"), .type = OperatorType_BINARY_LEFT,    .priority =  40, .variant = OperatorVariant_BINARY_OR    }
     };
 
     return (LangConfig) {

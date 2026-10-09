@@ -102,7 +102,7 @@ ASTNode* _ct_token_wrap_literal(Parser *p, Token *token) {
         lit->data.lbool = token->data.booll;
         break;
     case TokenType_IDENT:
-        lit->data.ident = token->data.ident;
+        lit->data.ident = (ASTIdentData) { .name = token->data.ident, .bound_index = 0 };
         break;
 
     default: break;
@@ -204,6 +204,7 @@ void _ct_collapse_expr_parts(ExprPartArray *parts_array, Parser *p) {
                     _ct_exprpart_get_range(operand_part)
                 );
                 opnode->range = node_range;
+                opnode->data.unop = decl;
 
                 ASTNode *operand = operand_part->data.subexpr;
                 opnode->children[0] = operand;
@@ -243,6 +244,7 @@ void _ct_collapse_expr_parts(ExprPartArray *parts_array, Parser *p) {
                     _ct_exprpart_get_range(left_operand_part),
                     _ct_exprpart_get_range(right_operand_part)
                 );
+                opnode->data.binop = decl;
 
                 ASTNode *left_operand = left_operand_part->data.subexpr;
                 ASTNode *right_operand = right_operand_part->data.subexpr;
@@ -383,16 +385,71 @@ ASTNode* ct_grammar_parens(Parser *p) {
     return expr;
 }
 
+ASTNode* _ct_grammar_lambda_arg(Parser *p) {
+    Token *arg_name = ct_parser_consume_if(p, TokenType_IDENT);
+    if (arg_name == 0) {
+        return ct_astnode_new_error(p, STR_CONST("expected an argument name"));
+    }
+
+    ASTNode *arg = ct_astnode_new(p, ASTNodeType_LAMBDA_ARG);
+    arg->base = arg_name;
+    arg->data.lambda_arg = (ASTLambdaArgData) {
+        .name = arg_name->data.ident,
+        .type = STR_EMPTY,
+    };
+
+    Token *colon = ct_parser_consume_if(p, TokenType_COLON);
+    if (colon == 0) { return arg; }
+
+    // TODO: this should become its own grammar, _ct_grammar_lambda_arg_spec
+    Token *arg_type = ct_parser_consume_if(p, TokenType_IDENT);
+    if (arg_type == 0) {
+        return ct_astnode_new_error_ranged(
+            p, STR_CONST("expected a specifier after ':'"),
+            ct_document_range_span(arg_name->range, ct_parser_current_range(p))
+        );
+    }
+
+    arg->data.lambda_arg.type = arg_type->data.ident;
+    arg->range = ct_document_range_span(arg_name->range, arg_type->range);
+    return arg;
+}
+
+void _ct_skip_until_ident_or_dot(Parser *p) {
+    Token *next = 0;
+    while ((next = ct_parser_peek(p)) != 0) {
+        switch (next->type) {
+            case TokenType_IDENT:
+            case TokenType_DOT:
+                return;
+
+            default:
+                ct_parser_consume(p);
+                break;
+        }
+    }
+}
+
 ASTNode* ct_grammar_lambda(Parser *p) {
     REQUIRE_TOKEN(TokenType_LAMBDA, "expected a '\\'")
 
     ASTNode *result = ct_astnode_new(p, ASTNodeType_LAMBDA);
     result->data.lambda = (ASTLambdaData) { 0 };
-    strarr_init(&result->data.lambda.argnames, 4, p->arena);
 
-    Token *next_arg = 0;
-    while ((next_arg = ct_parser_consume_if(p, TokenType_IDENT)) != 0) {
-        strarr_append(&result->data.lambda.argnames, next_arg->data.ident);
+    Token *next = 0;
+    while ((next = ct_parser_peek(p)) != 0) {
+        if (next->type == TokenType_DOT) { break; }
+
+        ASTNode *arg = _ct_grammar_lambda_arg(p);
+        ct_astnode_append_child(p, result, arg);
+
+        if (!ct_astnode_is_error(arg)) {
+            result->data.lambda.n_args += 1;
+            continue;
+        }
+
+        // in case of error, let's try to fast forward until next potentially parseable position
+        _ct_skip_until_ident_or_dot(p);
     }
 
     REQUIRE_TOKEN(TokenType_DOT, "expected a '.'")
