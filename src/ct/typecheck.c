@@ -170,6 +170,38 @@ size_t _ct_assign_binop_type(ASTNode *node, TypecheckerCtx *ctx) {
     return n_assigned;
 }
 
+size_t _ct_assign_fncall_types(ASTNode *node, TypecheckerCtx *ctx) {
+    if (node->value_type != 0) { return 0; }
+
+    size_t n_assigned = _ct_assign_children_types(node, ctx);
+    ASTNode *fn = node->first_child;
+    if (fn == 0 || fn->value_type == 0) { return n_assigned; }
+
+    switch (fn->value_type->kind) {
+    case LmbProgramTypeKind_IO:
+        // pretending like io always returns i32
+        node->value_type = _ct_type_get_primitive(PrimitiveType_I32);
+        n_assigned += 1;
+        break;
+
+    case LmbProgramTypeKind_ARROW:
+        // TODO: typecheck arguments
+        node->value_type = fn->value_type->data.arrow.ret_type;
+        n_assigned += 1;
+        break;
+
+    default:
+        _ct_typechecker_add_diagnostic(ctx->typechecker, (Diagnostic) {
+            .location = fn->range,
+            .message = STR_CONST("must be a function to be called"),
+            .severity = DiagnosticSeverity_ERROR,
+        });
+        break;
+    }
+
+    return n_assigned;
+}
+
 size_t _ct_assign_lambda_arg_type(ASTNode *node, TypecheckerCtx *ctx) {
     (void) ctx; // will most probably be needed later
     // TODO: data.lambda_arg.type should instead be a subtree
@@ -302,6 +334,7 @@ size_t _ct_assign_types(ASTNode *node, TypecheckerCtx *ctx) {
     case ASTNodeType_ENTRY: return _ct_assign_entry_type(node, ctx);
     case ASTNodeType_IDENT: return _ct_assign_ident_type(node, ctx);
     case ASTNodeType_BINOP: return _ct_assign_binop_type(node, ctx);
+    case ASTNodeType_FNCALL: return _ct_assign_fncall_types(node, ctx);
 
     case ASTNodeType_ASSIGNMENT: // must also write into the symtable
         n_assigned += _ct_assign_assignment_types(node, ctx);

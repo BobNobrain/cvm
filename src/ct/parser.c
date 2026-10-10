@@ -111,11 +111,6 @@ void ct_parser_parse(Parser *p, String source, ParserGrammar grammar) {
     p->input = tokens;
 
     p->root = grammar(p);
-    ct_parser_assign_types(p);
-
-    printf("AST:\n");
-    ct_astnode_print(p->root, 0);
-
     _ct_parser_collect_errors(p, p->root);
 
     if (p->input.size > 0) {
@@ -126,6 +121,11 @@ void ct_parser_parse(Parser *p, String source, ParserGrammar grammar) {
             .source = DiagnosticSource_SYNTAX,
         });
     }
+
+    ct_parser_assign_types(p);
+
+    printf("AST:\n");
+    ct_astnode_print(p->root, 0);
 }
 
 String ct_parser_configure(Parser *p, LangConfig config) {
