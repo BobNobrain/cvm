@@ -213,6 +213,7 @@ typedef struct ASTIdentData {
 // AST node data for lambdas (\x y.?)
 typedef struct ASTLambdaData {
     size_t n_args;
+    ASTNode *body;
 } ASTLambdaData;
 
 // AST node data for lambda args

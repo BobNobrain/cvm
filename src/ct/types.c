@@ -20,17 +20,17 @@ void ct_type_print(LmbProgramType *type) {
         break;
 
     case LmbProgramTypeKind_ARROW:
-        printf("(");
+        printf("\\");
 
         if (type->data.arrow.n_args > 0) {
             ct_type_print(type->data.arrow.arg_types[0]);
         }
 
         for (size_t i = 1; i < type->data.arrow.n_args; i++) {
-            printf(", ");
+            printf(" ");
             ct_type_print(type->data.arrow.arg_types[i]);
         }
-        printf(") -> ");
+        printf(". ");
         ct_type_print(type->data.arrow.ret_type);
         break;
 
@@ -61,3 +61,10 @@ LmbProgramType* _ct_type_get_primitive(PrimitiveType type) {
         die("unknown type");
     }
 }
+
+static LmbProgramType IO_TYPE = (LmbProgramType) {
+    .kind = LmbProgramTypeKind_IO,
+    .data = { 0 },
+};
+
+LmbProgramType* _ct_type_get_io() { return &IO_TYPE; }

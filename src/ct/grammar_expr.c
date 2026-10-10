@@ -453,6 +453,7 @@ ASTNode* ct_grammar_lambda(Parser *p) {
 
     ASTNode *body = ct_grammar_expr(p);
     ct_astnode_append_child(result, body);
+    result->data.lambda.body = body;
     return result;
 }
 

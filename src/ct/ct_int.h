@@ -28,5 +28,6 @@ extern DocumentRange ct_parser_current_range(Parser *p);
 extern void ct_parser_add_diagnostic(Parser *p, Diagnostic d);
 
 extern LmbProgramType* _ct_type_get_primitive(PrimitiveType type);
+extern LmbProgramType* _ct_type_get_io();
 
 #endif

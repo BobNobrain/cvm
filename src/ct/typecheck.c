@@ -18,12 +18,18 @@ struct SymbolTable {
 typedef struct Typechecker {
     SymbolTable *root_table;
     Arena *arena;
+    DiagnosticArray *diagnostics;
 } Typechecker;
 
 typedef struct TypecheckerCtx {
     Typechecker *typechecker;
     SymbolTable table;
 } TypecheckerCtx;
+
+void _ct_typechecker_add_diagnostic(Typechecker *typechecker, Diagnostic d) {
+    d.source = DiagnosticSource_TYPECHECK;
+    ct_diagnostic_array_append(typechecker->diagnostics, d);
+}
 
 LmbProgramType* _ct_symtable_find_type(SymbolTable *table, String target) {
     SymbolTable *current = table;
@@ -188,12 +194,12 @@ size_t _ct_assign_lambda_types(ASTNode *node, TypecheckerCtx *ctx) {
     LmbProgramType *lambda_type = arena_alloc(ctx->typechecker->arena, sizeof(LmbProgramType));
     LmbProgramType **arg_types = arena_alloc(
         ctx->typechecker->arena,
-        sizeof(LmbProgramType*) * (ct_astnode_count_children(node) - 1)
+        sizeof(LmbProgramType*) * node->data.lambda.n_args
     );
 
     *lambda_type = (LmbProgramType) {
         .kind = LmbProgramTypeKind_ARROW,
-        .data = { .arrow = { .n_args = 0, .arg_types = arg_types, .ret_type = 0 } },
+        .data = { .arrow = { .n_args = node->data.lambda.n_args, .arg_types = arg_types, .ret_type = 0 } },
     };
 
     size_t i = 0;
@@ -204,8 +210,6 @@ size_t _ct_assign_lambda_types(ASTNode *node, TypecheckerCtx *ctx) {
         if (arg->type != ASTNodeType_LAMBDA_ARG) {
             continue;
         }
-
-        lambda_type->data.arrow.n_args += 1;
 
         if (!arg->value_type) {
             if (_ct_assign_lambda_arg_type(arg, ctx) == 0) {
@@ -223,7 +227,7 @@ size_t _ct_assign_lambda_types(ASTNode *node, TypecheckerCtx *ctx) {
 
     n_assigned += _ct_assign_children_types(node, &inner_ctx);
 
-    ASTNode *lambda_body = ct_astnode_find_last_child(node);
+    ASTNode *lambda_body = node->data.lambda.body;
     if (!ct_astnode_is_error(lambda_body) && lambda_body->type != ASTNodeType_LAMBDA_ARG) {
         LmbProgramType *ret_type = lambda_body->value_type;
 
@@ -254,23 +258,50 @@ size_t _ct_assign_assignment_types(ASTNode *node, TypecheckerCtx *ctx) {
     return n_assigned;
 }
 
+size_t _ct_assign_entry_type(ASTNode *node, TypecheckerCtx *ctx) {
+    if (node->value_type != 0) { return 0; }
+    if (node->first_child == 0) { return 0; }
+
+    ASTNode *entry_lambda = node->first_child;
+    if (entry_lambda->type != ASTNodeType_LAMBDA || entry_lambda->data.lambda.n_args != 1) {
+        _ct_typechecker_add_diagnostic(ctx->typechecker, (Diagnostic) {
+            .location = node->base->range,
+            .message = STR_CONST("entry must be a function with a single argument"),
+            .severity = DiagnosticSeverity_ERROR,
+        });
+        return 0;
+    }
+
+    ASTNode *only_arg = entry_lambda->first_child;
+    while (only_arg != 0) {
+        if (only_arg->type == ASTNodeType_LAMBDA_ARG) { break; }
+        only_arg = only_arg->next_sibling;
+    }
+
+    size_t n_assigned = 0;
+
+    if (ct_astnode_is_error(only_arg)) { return n_assigned; }
+    if (only_arg->value_type == 0) {
+        only_arg->value_type = _ct_type_get_io();
+        n_assigned += 1;
+    }
+
+    n_assigned += _ct_assign_lambda_types(entry_lambda, ctx);
+    node->value_type = entry_lambda->value_type;
+
+    return n_assigned;
+}
+
 size_t _ct_assign_types(ASTNode *node, TypecheckerCtx *ctx) {
     if (node == 0) { return 0; }
 
     size_t n_assigned = 0;
 
     switch (node->type) {
-    case ASTNodeType_LMB_FILE:
-        return _ct_assign_children_types(node, ctx);
-    break;
-
-    case ASTNodeType_IDENT:
-        return _ct_assign_ident_type(node, ctx);
-    break;
-
-    case ASTNodeType_BINOP:
-        return _ct_assign_binop_type(node, ctx);
-    break;
+    case ASTNodeType_LMB_FILE: return _ct_assign_children_types(node, ctx);
+    case ASTNodeType_ENTRY: return _ct_assign_entry_type(node, ctx);
+    case ASTNodeType_IDENT: return _ct_assign_ident_type(node, ctx);
+    case ASTNodeType_BINOP: return _ct_assign_binop_type(node, ctx);
 
     case ASTNodeType_ASSIGNMENT: // must also write into the symtable
         n_assigned += _ct_assign_assignment_types(node, ctx);
@@ -278,7 +309,7 @@ size_t _ct_assign_types(ASTNode *node, TypecheckerCtx *ctx) {
 
     case ASTNodeType_UNOP:
         n_assigned += _ct_assign_children_types(node, ctx);
-        if (node->first_child != 0) {
+        if (node->first_child != 0 && node->value_type == 0) {
             // TODO: this is not always the case
             node->value_type = node->first_child->value_type;
             n_assigned += 1;
@@ -311,12 +342,15 @@ void ct_parser_assign_types(Parser *p) {
     Typechecker typechecker = {
         .arena = p->arena,
         .root_table = &root_ctx.table,
+        .diagnostics = &p->diagnostics,
     };
     root_ctx.typechecker = &typechecker;
 
     // TODO: better algorithm – build a dependency tree first
-    while (_ct_assign_types(p->root, &root_ctx) > 0) {
-        break;
+    size_t n_assigned = 0;
+    while ((n_assigned = _ct_assign_types(p->root, &root_ctx)) > 0) {
+        printf("next type inference iteration: %zu new types assigned\n", n_assigned);
+        // break;
         // loop until cannot resolve anymore types
     }
 }

@@ -2,7 +2,7 @@ let x = 10 * 5
 let y = 11.0 / 2
 let z =
 777
-let w = -3 # i am a comment
+let w = -3 + y # i am a comment
 
 #whoo-hoo functions!
 let f = \x:i32 y:i32. (42 - x) * y
