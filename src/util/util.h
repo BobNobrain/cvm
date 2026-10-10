@@ -20,8 +20,6 @@ typedef enum {
 
 #define ERR_DECL error err;
 #define ERR_PASS(EXPR) err = (EXPR); if (err != 0) { return err; }
-#define ERR_RET(RET, EXPR) err = (EXPR); if (err != 0) { return E; }
-#define ERR_CHECK_NOT_NULL(PTR) = (PTR == 0 ? E_MEMORY : E_NONE)
 #define ERR_ISSET (err != E_NONE)
 
 

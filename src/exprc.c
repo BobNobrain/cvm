@@ -21,10 +21,10 @@ int main() {
 
     ct_parser_parse(p, source, ct_grammar_expr);
 
-    if (p->errors.size > 0) {
+    if (p->diagnostics.size > 0) {
         printf("\nparse failed: \n");
-        for (size_t i = 0; i < p->errors.size; i++) {
-            ct_document_print_error(p->errors.content[i], p->arena);
+        for (size_t i = 0; i < p->diagnostics.size; i++) {
+            ct_diagnostic_print(p->diagnostics.content[i], source, p->arena);
         }
 
         return EXIT_FAILURE;

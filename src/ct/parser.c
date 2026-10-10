@@ -8,7 +8,7 @@ Parser* ct_parser_new(Arena *arena) {
 
     parser->input = (TokenSlice) { 0 };
     parser->root = 0;
-    ct_err_array_init(&parser->errors, 8, parser->arena);
+    ct_diagnostic_array_init(&parser->diagnostics, 32, parser->arena);
 
     return parser;
 }
@@ -69,15 +69,21 @@ DocumentRange ct_parser_current_range(Parser *p) {
 
 void _ct_parser_collect_errors(Parser *p, ASTNode *node) {
     if (node == 0) {
-        ct_parser_append_error(p, "null node found", (DocumentRange) { 0 });
+        ct_parser_add_diagnostic(p, (Diagnostic) {
+            .location = (DocumentRange) { 0 },
+            .message = STR_CONST("null node found"),
+            .severity = DiagnosticSeverity_ERROR,
+            .source = DiagnosticSource_SYNTAX,
+        });
         return;
     }
 
     if (node->type == ASTNodeType_SYNTAX_ERROR) {
-        ct_err_array_append(&p->errors, (DocumentError) {
-            .source = p->source,
+        ct_parser_add_diagnostic(p, (Diagnostic) {
             .location = node->range,
-            .message = node->data.error
+            .message = node->data.error,
+            .severity = DiagnosticSeverity_ERROR,
+            .source = DiagnosticSource_SYNTAX,
         });
     }
 
@@ -94,7 +100,7 @@ void ct_parser_parse(Parser *p, String source, ParserGrammar grammar) {
 
     Tokenizer t;
     ct_tokenizer_init(&t, p->arena, p->config);
-    ct_tokenizer_run(&t, source, &p->errors);
+    ct_tokenizer_run(&t, source, &p->diagnostics);
 
     printf("TOKENS:\n");
     ct_tokenizer_print(&t);
@@ -113,7 +119,12 @@ void ct_parser_parse(Parser *p, String source, ParserGrammar grammar) {
     _ct_parser_collect_errors(p, p->root);
 
     if (p->input.size > 0) {
-        ct_parser_append_error(p, "parser stopped prematurely", p->input.content[0].range);
+        ct_parser_add_diagnostic(p, (Diagnostic) {
+            .location = p->input.content[0].range,
+            .message = STR_CONST("parser stopped prematurely"),
+            .severity = DiagnosticSeverity_ERROR,
+            .source = DiagnosticSource_SYNTAX,
+        });
     }
 }
 
@@ -127,12 +138,6 @@ String ct_parser_configure(Parser *p, LangConfig config) {
     return STR_EMPTY;
 }
 
-void ct_parser_append_error(Parser *p, char* msg, DocumentRange range) {
-    DocumentError e = { .source = p->source, .location = range, .message = str_wrap(msg) };
-    ct_err_array_append(&p->errors, e);
-}
-
-DocumentError ct_parser_make_error(Parser *p, char* msg, DocumentRange range) {
-    DocumentError e = { .source = p->source, .location = range, .message = str_wrap(msg) };
-    return e;
+void ct_parser_add_diagnostic(Parser *p, Diagnostic d) {
+    ct_diagnostic_array_append(&p->diagnostics, d);
 }

@@ -31,10 +31,10 @@ int main() {
     printf("\n\n===============================\n");
     ct_parser_parse(p, program_text, ct_grammar_lmb_file);
 
-    if (p->errors.size > 0) {
+    if (p->diagnostics.size > 0) {
         printf("\nparse failed: \n");
-        for (size_t i = 0; i < p->errors.size; i++) {
-            ct_document_print_error(p->errors.content[i], p->arena);
+        for (size_t i = 0; i < p->diagnostics.size; i++) {
+            ct_diagnostic_print(p->diagnostics.content[i], program_text, p->arena);
         }
 
         arena_destroy(arena);

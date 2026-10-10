@@ -255,7 +255,7 @@ TokenScannerResult _ct_tokenizer_scan_builtin_op(Tokenizer *t, Token *into) {
     return _ct_result_ok(1);
 }
 
-void ct_tokenizer_parse_token(Token *token, String source, DocumentErrorArray *errors) {
+void ct_tokenizer_parse_token(Token *token, String source, DiagnosticArray *errors) {
     String token_content = ct_document_substring(source, token->range);
 
     switch (token->type) {
@@ -281,23 +281,24 @@ void ct_tokenizer_parse_token(Token *token, String source, DocumentErrorArray *e
         } else {
             token->data.ident = token_content;
         }
-        break;
+    break;
 
     case TokenType_INT_LITERAL: {
         unsigned int parsed;
         size_t n_chars = str_parse_uint_dec(token_content, &parsed);
 
         if (n_chars != token_content.size) {
-            ct_err_array_append(errors, (DocumentError) {
-                .source = source,
+            ct_diagnostic_array_append(errors, (Diagnostic) {
+                .location = token->range,
                 .message = STR_CONST("failed to parse an integer"),
-                .location = token->range
+                .severity = DiagnosticSeverity_ERROR,
+                .source = DiagnosticSource_SYNTAX,
             });
             return;
         }
 
         token->data.intl = (int) parsed;
-        break;
+    break;
     }
 
     case TokenType_FLOAT_LITERAL: {
@@ -307,10 +308,11 @@ void ct_tokenizer_parse_token(Token *token, String source, DocumentErrorArray *e
         size_t n_chars_frac = str_parse_uint_dec(frac_str, &frac);
 
         if (n_chars_whole + n_chars_frac + 1 != token_content.size) {
-            ct_err_array_append(errors, (DocumentError) {
-                .source = source,
+            ct_diagnostic_array_append(errors, (Diagnostic) {
+                .location = token->range,
                 .message = STR_CONST("failed to parse a float"),
-                .location = token->range
+                .severity = DiagnosticSeverity_ERROR,
+                .source = DiagnosticSource_SYNTAX,
             });
             return;
         }
@@ -320,7 +322,7 @@ void ct_tokenizer_parse_token(Token *token, String source, DocumentErrorArray *e
             frac_size *= 10;
         }
         token->data.floatl = (float) whole + ((float) frac) / ((float) frac_size);
-        break;
+    break;
     }
 
     case TokenType_OPERATOR:
@@ -335,28 +337,26 @@ void ct_tokenizer_parse_token(Token *token, String source, DocumentErrorArray *e
         } else if (str_eq(token->data.op, STR_CONST(":"))) {
             token->type = TokenType_COLON;
         }
-        break;
+    break;
 
     case TokenType_INVALID:
-        ct_err_array_append(errors, (DocumentError) {
-            .source = source,
+        ct_diagnostic_array_append(errors, (Diagnostic) {
+            .location = token->range,
             .message = STR_CONST("invalid token"),
-            .location = token->range
+            .severity = DiagnosticSeverity_ERROR,
+            .source = DiagnosticSource_SYNTAX,
         });
-        break;
+    break;
 
-    default:
-        return;
+    default: return;
     }
-
-    return;
 }
 
 void _ct_tokenizer_consume_source(Tokenizer *t, size_t n) {
     t->source = str_substring(t->source, n, t->source.size);
 }
 
-void ct_tokenizer_run(Tokenizer *t, String source, DocumentErrorArray *errors) {
+void ct_tokenizer_run(Tokenizer *t, String source, DiagnosticArray *errors) {
     t->source = source;
     t->cursor = ct_document_pos_zero();
 

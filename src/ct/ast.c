@@ -21,12 +21,6 @@ ASTNode* ct_astnode_new_error(Parser *parser, String msg) {
     e->range = ct_parser_current_range(parser);
     return e;
 }
-ASTNode* ct_astnode_new_error_from(Parser *parser, DocumentError docerr) {
-    ASTNode *e = ct_astnode_new(parser, ASTNodeType_SYNTAX_ERROR);
-    e->data.error = docerr.message;
-    e->range = docerr.location;
-    return e;
-}
 ASTNode* ct_astnode_new_error_ranged(Parser *parser, String msg, DocumentRange range) {
     ASTNode *e = ct_astnode_new(parser, ASTNodeType_SYNTAX_ERROR);
     e->data.error = msg;
