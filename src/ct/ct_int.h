@@ -14,6 +14,8 @@ extern void ct_tokenizer_init(Tokenizer *t, Arena *arena, LangConfig config);
 extern void ct_tokenizer_run(Tokenizer *t, String source, DiagnosticArray *errors);
 extern void ct_tokenizer_print(Tokenizer *t);
 
+extern void ct_astnode_set_range_span_children(ASTNode *node);
+
 typedef struct ParserRewindPoint {
     TokenSlice input;
 } ParserRewindPoint;
@@ -29,5 +31,7 @@ extern void ct_parser_add_diagnostic(Parser *p, Diagnostic d);
 
 extern LmbProgramType* _ct_type_get_primitive(PrimitiveType type);
 extern LmbProgramType* _ct_type_get_io();
+extern LmbProgramType* _ct_type_get_invalid();
+extern bool _ct_types_are_equal(LmbProgramType *t1, LmbProgramType *t2);
 
 #endif

@@ -296,6 +296,7 @@ extern ASTNode* ct_grammar_lmb_file(Parser *p);
  */
 // Enumeration of possible type kinds
 typedef enum LmbProgramTypeKind {
+    LmbProgramTypeKind_INVALID,
     LmbProgramTypeKind_IO,
     LmbProgramTypeKind_PRIMITIVE,
     LmbProgramTypeKind_ARROW,

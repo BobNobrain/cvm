@@ -360,6 +360,7 @@ ASTNode* ct_grammar_operator_expr(Parser *p) {
         ct_astnode_append_child(result, part.data.subexpr);
     }
 
+    ct_astnode_set_range_span_children(result);
     return result;
 }
 
@@ -390,6 +391,7 @@ ASTNode* _ct_grammar_lambda_arg(Parser *p) {
 
     ASTNode *arg = ct_astnode_new(p, ASTNodeType_LAMBDA_ARG);
     arg->base = arg_name;
+    arg->range = arg_name->range;
     arg->data.lambda_arg = (ASTLambdaArgData) {
         .name = arg_name->data.ident,
         .type = STR_EMPTY,
@@ -428,6 +430,7 @@ void _ct_skip_until_ident_or_dot(Parser *p) {
 }
 
 ASTNode* ct_grammar_lambda(Parser *p) {
+    Token *lambda_symbol = ct_parser_peek(p);
     REQUIRE_TOKEN(TokenType_LAMBDA, "expected a '\\'")
 
     ASTNode *result = ct_astnode_new(p, ASTNodeType_LAMBDA);
@@ -454,6 +457,7 @@ ASTNode* ct_grammar_lambda(Parser *p) {
     ASTNode *body = ct_grammar_expr(p);
     ct_astnode_append_child(result, body);
     result->data.lambda.body = body;
+    result->range = ct_document_range_span(lambda_symbol->range, body->range);
     return result;
 }
 

@@ -38,6 +38,7 @@ void _ct_skip_until_top_level_decl_again(Parser *p) {
 }
 
 ASTNode* _ct_grammar_let_declaration(Parser *p) {
+    Token *base = ct_parser_peek(p);
     REQUIRE_KEYWORD(Keyword_LET, "expected a 'let' keyword")
 
     Token *var, *assignment;
@@ -54,6 +55,8 @@ ASTNode* _ct_grammar_let_declaration(Parser *p) {
     ASTNode *result = ct_astnode_new(p, ASTNodeType_ASSIGNMENT);
     result->data.assignment.ident_token = var;
     result->data.assignment.identifier = var->data.ident;
+    result->base = base;
+    result->range = ct_document_range_span(base->range, value->range);
     ct_astnode_append_child(result, value);
     return result;
 }
@@ -65,6 +68,7 @@ ASTNode* _ct_grammar_entry_declaration(Parser *p) {
     ASTNode *entry_fn = ct_grammar_lambda(p);
     ASTNode *entry = ct_astnode_new(p, ASTNodeType_ENTRY);
     entry->base = entry_kw;
+    entry->range = ct_document_range_span(entry_kw->range, entry_fn->range);
     ct_astnode_append_child(entry, entry_fn);
 
     if (ct_astnode_is_error(entry_fn)) {

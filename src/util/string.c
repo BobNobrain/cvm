@@ -222,5 +222,7 @@ String str_replace_all(String source, String pattern, String replacement, Arena 
         cursor = ((size_t) next_pattern) + pattern.size;
     }
 
+    if (cursor == 0) { return source; }
+
     return strb_render(sb);
 }

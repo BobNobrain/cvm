@@ -142,3 +142,20 @@ void ct_astnode_print(ASTNode *node, size_t indent) {
         it = it->next_sibling;
     }
 }
+
+void ct_astnode_set_range_span_children(ASTNode *node) {
+    if (!node->first_child) {
+        if (!node->base) { return; }
+
+        node->range = node->base->range;
+        return;
+    }
+
+    ASTNode *last = ct_astnode_find_last_child(node);
+    if (last == node->first_child) {
+        node->range = node->first_child->range;
+        return;
+    }
+
+    node->range = ct_document_range_span(node->first_child->range, last->range);
+}

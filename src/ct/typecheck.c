@@ -19,6 +19,7 @@ typedef struct Typechecker {
     SymbolTable *root_table;
     Arena *arena;
     DiagnosticArray *diagnostics;
+    size_t n_types_assigned;
 } Typechecker;
 
 typedef struct TypecheckerCtx {
@@ -61,7 +62,7 @@ bool _ct_symtable_register(SymbolTable *table, String name, ASTNode *source) {
     return true;
 }
 
-TypecheckerCtx _ct_typecheck_ctx_create(TypecheckerCtx *outer) {
+TypecheckerCtx _ct_typechecker_create_ctx(TypecheckerCtx *outer) {
     TypecheckerCtx inner = {
         .typechecker = outer->typechecker,
         .table = { .symbols = { 0 }, .parent = &outer->table },
@@ -70,58 +71,80 @@ TypecheckerCtx _ct_typecheck_ctx_create(TypecheckerCtx *outer) {
     return inner;
 }
 
-size_t _ct_assign_types(ASTNode *node, TypecheckerCtx *ctx);
+void _ct_typechecker_set_node_type(Typechecker *typechecker, ASTNode *node, LmbProgramType *type) {
+    if (type == 0) { return; }
 
-size_t _ct_assign_children_types(ASTNode *node, TypecheckerCtx *ctx) {
-    size_t n_total = 0;
-    ASTNode *it = node->first_child;
-    while (it != 0) {
-        n_total += _ct_assign_types(it, ctx);
-        it = it->next_sibling;
+    if (node->value_type != 0) {
+        if (node->value_type == LmbProgramTypeKind_INVALID) { return; }
+        if (_ct_types_are_equal(node->value_type, type)) { return; }
+
+        node->value_type = _ct_type_get_invalid();
+        _ct_typechecker_add_diagnostic(typechecker, (Diagnostic) {
+            .location = node->range,
+            .message = STR_CONST("conflicting node types"),
+            .severity = DiagnosticSeverity_ERROR,
+        });
+        return;
     }
-    return n_total;
+
+    typechecker->n_types_assigned += 1;
+    node->value_type = type;
 }
 
-size_t _ct_assign_ident_type(ASTNode *node, TypecheckerCtx *ctx) {
-    if (node->value_type != 0) { return 0; }
+
+void _ct_assign_types(ASTNode *node, TypecheckerCtx *ctx);
+
+void _ct_assign_children_types(ASTNode *node, TypecheckerCtx *ctx) {
+    ASTNode *it = node->first_child;
+    while (it != 0) {
+        _ct_assign_types(it, ctx);
+        it = it->next_sibling;
+    }
+}
+
+void _ct_assign_ident_type(ASTNode *node, TypecheckerCtx *ctx) {
+    if (node->value_type != 0) { return; }
 
     LmbProgramType *found_type = _ct_symtable_find_type(&ctx->table, node->data.ident.name);
     if (found_type != 0) {
-        node->value_type = found_type;
-        return 1;
+        _ct_typechecker_set_node_type(ctx->typechecker, node, found_type);
     }
-    return 0;
 }
-size_t _ct_assign_literal_type(ASTNode *node, TypecheckerCtx *ctx) {
-    (void) ctx;
-    if (node->value_type != 0) { return 0; }
+void _ct_assign_literal_type(ASTNode *node, TypecheckerCtx *ctx) {
+    if (node->value_type != 0) { return; }
 
     switch (node->type) {
     // TODO: bools
-    case ASTNodeType_LBOOL:  node->value_type = _ct_type_get_primitive(PrimitiveType_I32); return 1;
-    case ASTNodeType_LINT:   node->value_type = _ct_type_get_primitive(PrimitiveType_I32); return 1;
-    case ASTNodeType_LFLOAT: node->value_type = _ct_type_get_primitive(PrimitiveType_F32); return 1;
-        default: return 0;
+    case ASTNodeType_LBOOL:
+        _ct_typechecker_set_node_type(ctx->typechecker, node, _ct_type_get_primitive(PrimitiveType_I32));
+    break;
+    case ASTNodeType_LINT:
+        _ct_typechecker_set_node_type(ctx->typechecker, node, _ct_type_get_primitive(PrimitiveType_I32));
+    break;
+    case ASTNodeType_LFLOAT:
+        _ct_typechecker_set_node_type(ctx->typechecker, node, _ct_type_get_primitive(PrimitiveType_F32));
+    break;
+
+    default: break;
     }
 }
 
-size_t _ct_assign_binop_type(ASTNode *node, TypecheckerCtx *ctx) {
-    if (node->value_type != 0) { return 0; }
+void _ct_assign_binop_type(ASTNode *node, TypecheckerCtx *ctx) {
+    if (node->value_type != 0) { return; }
 
-    size_t n_assigned = _ct_assign_children_types(node, ctx);
-    if (ct_astnode_count_children(node) != 2) {
-        return n_assigned;
-    }
+    _ct_assign_children_types(node, ctx);
+    if (ct_astnode_is_error(node->first_child)) { return; }
+    if (ct_astnode_is_error(node->first_child->next_sibling)) { return; }
 
     LmbProgramType *ltype = node->first_child->value_type;
     LmbProgramType *rtype = node->first_child->next_sibling->value_type;
 
     // non-primitives are not supported for operators yet
     if (ltype->kind != LmbProgramTypeKind_PRIMITIVE) {
-        return n_assigned;
+        return;
     }
     if (rtype->kind != LmbProgramTypeKind_PRIMITIVE) {
-        return n_assigned;
+        return;
     }
 
     LmbProgramType *max_fitting = _ct_type_get_primitive(PrimitiveType_I32);
@@ -135,17 +158,20 @@ size_t _ct_assign_binop_type(ASTNode *node, TypecheckerCtx *ctx) {
         case OperatorVariant_BINARY_MUL:
         case OperatorVariant_BINARY_DIV:
         case OperatorVariant_BINARY_POWER:
-            node->value_type = max_fitting;
-            n_assigned += 1;
+            _ct_typechecker_set_node_type(ctx->typechecker, node, max_fitting);
             break;
 
         case OperatorVariant_BINARY_REM:
             if (max_fitting->data.primitive == PrimitiveType_F32) {
-                // no modulo remainder for floats
+                _ct_typechecker_set_node_type(ctx->typechecker, node, _ct_type_get_invalid());
+                _ct_typechecker_add_diagnostic(ctx->typechecker, (Diagnostic) {
+                    .location = node->base->range,
+                    .message = STR_CONST("modulo remainder is not supported for floating point values"),
+                    .severity= DiagnosticSeverity_ERROR,
+                });
                 break;
             }
-            node->value_type = _ct_type_get_primitive(PrimitiveType_I32);
-            n_assigned += 1;
+            _ct_typechecker_set_node_type(ctx->typechecker, node, _ct_type_get_primitive(PrimitiveType_I32));
             break;
 
         case OperatorVariant_BINARY_LT:
@@ -155,40 +181,37 @@ size_t _ct_assign_binop_type(ASTNode *node, TypecheckerCtx *ctx) {
         case OperatorVariant_BINARY_EQ:
         case OperatorVariant_BINARY_NEQ:
             // no bools yet
-            node->value_type = _ct_type_get_primitive(PrimitiveType_I32);
-            n_assigned += 1;
+            _ct_typechecker_set_node_type(ctx->typechecker, node, _ct_type_get_primitive(PrimitiveType_I32));
             break;
 
         case OperatorVariant_BINARY_AND:
         case OperatorVariant_BINARY_OR:
             // no bools yet
-            node->value_type = _ct_type_get_primitive(PrimitiveType_I32);
-            n_assigned += 1;
+            _ct_typechecker_set_node_type(ctx->typechecker, node, _ct_type_get_primitive(PrimitiveType_I32));
             break;
     }
-
-    return n_assigned;
 }
 
-size_t _ct_assign_fncall_types(ASTNode *node, TypecheckerCtx *ctx) {
-    if (node->value_type != 0) { return 0; }
+void _ct_assign_fncall_types(ASTNode *node, TypecheckerCtx *ctx) {
+    if (node->value_type != 0) { return; }
 
-    size_t n_assigned = _ct_assign_children_types(node, ctx);
+    _ct_assign_children_types(node, ctx);
     ASTNode *fn = node->first_child;
-    if (fn == 0 || fn->value_type == 0) { return n_assigned; }
+    if (fn == 0 || fn->value_type == 0) {
+        _ct_typechecker_set_node_type(ctx->typechecker, node, _ct_type_get_invalid());
+        return;
+    }
 
     switch (fn->value_type->kind) {
     case LmbProgramTypeKind_IO:
         // pretending like io always returns i32
-        node->value_type = _ct_type_get_primitive(PrimitiveType_I32);
-        n_assigned += 1;
-        break;
+        _ct_typechecker_set_node_type(ctx->typechecker, node, _ct_type_get_primitive(PrimitiveType_I32));
+    break;
 
     case LmbProgramTypeKind_ARROW:
         // TODO: typecheck arguments
-        node->value_type = fn->value_type->data.arrow.ret_type;
-        n_assigned += 1;
-        break;
+        _ct_typechecker_set_node_type(ctx->typechecker, node, fn->value_type->data.arrow.ret_type);
+    break;
 
     default:
         _ct_typechecker_add_diagnostic(ctx->typechecker, (Diagnostic) {
@@ -196,33 +219,39 @@ size_t _ct_assign_fncall_types(ASTNode *node, TypecheckerCtx *ctx) {
             .message = STR_CONST("must be a function to be called"),
             .severity = DiagnosticSeverity_ERROR,
         });
-        break;
+    break;
     }
-
-    return n_assigned;
 }
 
-size_t _ct_assign_lambda_arg_type(ASTNode *node, TypecheckerCtx *ctx) {
-    (void) ctx; // will most probably be needed later
+void _ct_assign_lambda_arg_type(ASTNode *node, TypecheckerCtx *ctx) {
     // TODO: data.lambda_arg.type should instead be a subtree
     if (str_eq(node->data.lambda_arg.type, STR_CONST("i32"))) {
-        node->value_type = _ct_type_get_primitive(PrimitiveType_I32);
-        return 1;
+        _ct_typechecker_set_node_type(ctx->typechecker, node, _ct_type_get_primitive(PrimitiveType_I32));
+        return;
     }
 
     if (str_eq(node->data.lambda_arg.type, STR_CONST("f32"))) {
-        node->value_type = _ct_type_get_primitive(PrimitiveType_F32);
-        return 1;
+        _ct_typechecker_set_node_type(ctx->typechecker, node, _ct_type_get_primitive(PrimitiveType_F32));
+        return;
     }
 
-    return 0;
+    if (str_eq(node->data.lambda_arg.type, STR_CONST("io"))) {
+        _ct_typechecker_set_node_type(ctx->typechecker, node, _ct_type_get_io());
+        return;
+    }
+
+    _ct_typechecker_set_node_type(ctx->typechecker, node, _ct_type_get_invalid());
+    _ct_typechecker_add_diagnostic(ctx->typechecker, (Diagnostic) {
+        .location = node->range,
+        .message = STR_CONST("argument type must be set"),
+        .severity = DiagnosticSeverity_ERROR,
+    });
 }
 
-size_t _ct_assign_lambda_types(ASTNode *node, TypecheckerCtx *ctx) {
-    if (node->value_type != 0) { return 0; }
-    if (node->first_child == 0) { return 0; }
+void _ct_assign_lambda_types(ASTNode *node, TypecheckerCtx *ctx) {
+    if (node->value_type != 0) { return; }
+    if (node->first_child == 0) { return; }
 
-    size_t n_assigned = 0;
     LmbProgramType *lambda_type = arena_alloc(ctx->typechecker->arena, sizeof(LmbProgramType));
     LmbProgramType **arg_types = arena_alloc(
         ctx->typechecker->arena,
@@ -235,7 +264,7 @@ size_t _ct_assign_lambda_types(ASTNode *node, TypecheckerCtx *ctx) {
     };
 
     size_t i = 0;
-    TypecheckerCtx inner_ctx = _ct_typecheck_ctx_create(ctx);
+    TypecheckerCtx inner_ctx = _ct_typechecker_create_ctx(ctx);
     for (ASTNode *child = node->first_child; child != 0; child = child->next_sibling, ++i) {
         ASTNode *arg = child;
 
@@ -243,23 +272,17 @@ size_t _ct_assign_lambda_types(ASTNode *node, TypecheckerCtx *ctx) {
             continue;
         }
 
-        if (!arg->value_type) {
-            if (_ct_assign_lambda_arg_type(arg, ctx) == 0) {
-                arg_types[i] = 0;
-                // could not set arg type
-                continue;
-            }
-
-            n_assigned += 1;
+        if (arg->value_type == 0) {
+            _ct_assign_lambda_arg_type(arg, ctx);
         }
 
         _ct_symtable_register(&inner_ctx.table, arg->data.lambda_arg.name, arg);
         arg_types[i] = arg->value_type;
     }
 
-    n_assigned += _ct_assign_children_types(node, &inner_ctx);
-
     ASTNode *lambda_body = node->data.lambda.body;
+    _ct_assign_types(lambda_body, &inner_ctx);
+
     if (!ct_astnode_is_error(lambda_body) && lambda_body->type != ASTNodeType_LAMBDA_ARG) {
         LmbProgramType *ret_type = lambda_body->value_type;
 
@@ -268,31 +291,21 @@ size_t _ct_assign_lambda_types(ASTNode *node, TypecheckerCtx *ctx) {
         }
     }
 
-    node->value_type = lambda_type;
-    n_assigned += 1;
-    return n_assigned;
+    _ct_typechecker_set_node_type(ctx->typechecker, node, lambda_type);
+    return;
 }
 
-size_t _ct_assign_assignment_types(ASTNode *node, TypecheckerCtx *ctx) {
-    size_t n_assigned = _ct_assign_children_types(node, ctx);
-    if (n_assigned > 0) {
-        if (node->value_type == 0) {
-            n_assigned += 1;
-        }
-
-        node->value_type = node->first_child->value_type;
-
-        if (node->value_type != 0) {
-            _ct_symtable_register(&ctx->table, node->data.assignment.identifier, node);
-        }
+void _ct_assign_assignment_types(ASTNode *node, TypecheckerCtx *ctx) {
+    _ct_assign_children_types(node, ctx);
+    _ct_typechecker_set_node_type(ctx->typechecker, node, node->first_child->value_type);
+    if (node->value_type != 0) {
+        _ct_symtable_register(&ctx->table, node->data.assignment.identifier, node);
     }
-
-    return n_assigned;
 }
 
-size_t _ct_assign_entry_type(ASTNode *node, TypecheckerCtx *ctx) {
-    if (node->value_type != 0) { return 0; }
-    if (node->first_child == 0) { return 0; }
+void _ct_assign_entry_type(ASTNode *node, TypecheckerCtx *ctx) {
+    if (node->value_type != 0) { return; }
+    if (node->first_child == 0) { return; }
 
     ASTNode *entry_lambda = node->first_child;
     if (entry_lambda->type != ASTNodeType_LAMBDA || entry_lambda->data.lambda.n_args != 1) {
@@ -301,7 +314,8 @@ size_t _ct_assign_entry_type(ASTNode *node, TypecheckerCtx *ctx) {
             .message = STR_CONST("entry must be a function with a single argument"),
             .severity = DiagnosticSeverity_ERROR,
         });
-        return 0;
+        _ct_typechecker_set_node_type(ctx->typechecker, node, _ct_type_get_invalid());
+        return;
     }
 
     ASTNode *only_arg = entry_lambda->first_child;
@@ -310,59 +324,43 @@ size_t _ct_assign_entry_type(ASTNode *node, TypecheckerCtx *ctx) {
         only_arg = only_arg->next_sibling;
     }
 
-    size_t n_assigned = 0;
-
-    if (ct_astnode_is_error(only_arg)) { return n_assigned; }
+    if (ct_astnode_is_error(only_arg)) { return; }
     if (only_arg->value_type == 0) {
-        only_arg->value_type = _ct_type_get_io();
-        n_assigned += 1;
+        _ct_typechecker_set_node_type(ctx->typechecker, only_arg, _ct_type_get_io());
     }
 
-    n_assigned += _ct_assign_lambda_types(entry_lambda, ctx);
-    node->value_type = entry_lambda->value_type;
-
-    return n_assigned;
+    _ct_assign_lambda_types(entry_lambda, ctx);
+    _ct_typechecker_set_node_type(ctx->typechecker, node, entry_lambda->value_type);
 }
 
-size_t _ct_assign_types(ASTNode *node, TypecheckerCtx *ctx) {
-    if (node == 0) { return 0; }
-
-    size_t n_assigned = 0;
+void _ct_assign_types(ASTNode *node, TypecheckerCtx *ctx) {
+    if (ct_astnode_is_error(node)) { return; }
 
     switch (node->type) {
-    case ASTNodeType_LMB_FILE: return _ct_assign_children_types(node, ctx);
-    case ASTNodeType_ENTRY: return _ct_assign_entry_type(node, ctx);
-    case ASTNodeType_IDENT: return _ct_assign_ident_type(node, ctx);
-    case ASTNodeType_BINOP: return _ct_assign_binop_type(node, ctx);
-    case ASTNodeType_FNCALL: return _ct_assign_fncall_types(node, ctx);
-
-    case ASTNodeType_ASSIGNMENT: // must also write into the symtable
-        n_assigned += _ct_assign_assignment_types(node, ctx);
-    break;
+    case ASTNodeType_LMB_FILE:   _ct_assign_children_types(node, ctx); break;
+    case ASTNodeType_ENTRY:      _ct_assign_entry_type(node, ctx); break;
+    case ASTNodeType_IDENT:      _ct_assign_ident_type(node, ctx); break;
+    case ASTNodeType_BINOP:      _ct_assign_binop_type(node, ctx); break;
+    case ASTNodeType_FNCALL:     _ct_assign_fncall_types(node, ctx); break;
+    case ASTNodeType_ASSIGNMENT: _ct_assign_assignment_types(node, ctx); break;
+    case ASTNodeType_LAMBDA:     _ct_assign_lambda_types(node, ctx); break;
 
     case ASTNodeType_UNOP:
-        n_assigned += _ct_assign_children_types(node, ctx);
+        _ct_assign_children_types(node, ctx);
         if (node->first_child != 0 && node->value_type == 0) {
             // TODO: this is not always the case
-            node->value_type = node->first_child->value_type;
-            n_assigned += 1;
+            _ct_typechecker_set_node_type(ctx->typechecker, node, node->first_child->value_type);
         }
-    break;
-
-    case ASTNodeType_LAMBDA:
-        n_assigned += _ct_assign_lambda_types(node, ctx);
     break;
 
     case ASTNodeType_LBOOL:
     case ASTNodeType_LINT:
     case ASTNodeType_LFLOAT:
-        n_assigned += _ct_assign_literal_type(node, ctx);
+        _ct_assign_literal_type(node, ctx);
     break;
 
     default: break;
     }
-
-    return n_assigned;
 }
 
 void ct_parser_assign_types(Parser *p) {
@@ -376,14 +374,15 @@ void ct_parser_assign_types(Parser *p) {
         .arena = p->arena,
         .root_table = &root_ctx.table,
         .diagnostics = &p->diagnostics,
+        .n_types_assigned = 0,
     };
     root_ctx.typechecker = &typechecker;
 
     // TODO: better algorithm – build a dependency tree first
-    size_t n_assigned = 0;
-    while ((n_assigned = _ct_assign_types(p->root, &root_ctx)) > 0) {
-        printf("next type inference iteration: %zu new types assigned\n", n_assigned);
-        // break;
+    do {
+        typechecker.n_types_assigned = 0;
+        _ct_assign_types(p->root, &root_ctx);
         // loop until cannot resolve anymore types
-    }
+        printf("next type inference iteration: %zu new types assigned\n", typechecker.n_types_assigned);
+    } while (typechecker.n_types_assigned > 0);
 }
