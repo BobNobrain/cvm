@@ -2,15 +2,14 @@
 #include "util.h"
 #include "ct_int.h"
 
-Parser* ct_parser_new(Arena *arena) {
-    Parser *parser = arena_alloc(arena, sizeof(Parser));
-    parser->arena = arena;
-
-    parser->input = (TokenSlice) { 0 };
+void ct_parser_init(Parser *parser, Compiler *c) {
+    parser->arena = c->arena;
+    parser->config = c->config;
+    parser->diagnostics = &c->diagnostics;
     parser->root = 0;
-    ct_diagnostic_array_init(&parser->diagnostics, 32, parser->arena);
-
-    return parser;
+    parser->source = c->source;
+    parser->input = (TokenSlice) { 0 };
+    parser->input_original = (TokenSlice) { 0 };
 }
 
 Token* ct_parser_consume(Parser *p) {
@@ -94,21 +93,9 @@ void _ct_parser_collect_errors(Parser *p, ASTNode *node) {
     }
 }
 
-void ct_parser_parse(Parser *p, String source, ParserGrammar grammar) {
-    printf("SOURCE: " STR_FMT_DEBUG "\n", STR_FMT_DEBUG_VAL(source));
-    p->source = source;
-
-    Tokenizer t;
-    ct_tokenizer_init(&t, p->arena, p->config);
-    ct_tokenizer_run(&t, source, &p->diagnostics);
-
-    printf("TOKENS:\n");
-    ct_tokenizer_print(&t);
-    printf("\n");
-
-    TokenSlice tokens = ct_tokenarray_seal(&t.tokens);
-    p->input_original = tokens;
-    p->input = tokens;
+void ct_parser_parse(Parser *p, TokenSlice input, ParserGrammar grammar) {
+    p->input_original = input;
+    p->input = input;
 
     p->root = grammar(p);
     _ct_parser_collect_errors(p, p->root);
@@ -121,11 +108,6 @@ void ct_parser_parse(Parser *p, String source, ParserGrammar grammar) {
             .source = DiagnosticSource_SYNTAX,
         });
     }
-
-    ct_parser_assign_types(p);
-
-    printf("AST:\n");
-    ct_astnode_print(p->root, 0);
 }
 
 String ct_parser_configure(Parser *p, LangConfig config) {
@@ -139,5 +121,12 @@ String ct_parser_configure(Parser *p, LangConfig config) {
 }
 
 void ct_parser_add_diagnostic(Parser *p, Diagnostic d) {
-    ct_diagnostic_array_append(&p->diagnostics, d);
+    ct_diagnostic_array_append(p->diagnostics, d);
+}
+
+ASTNode* ct_run_parsing(Compiler *c, TokenSlice input) {
+    Parser p = { 0 };
+    ct_parser_init(&p, c);
+    ct_parser_parse(&p, input, c->grammar);
+    return p.root;
 }

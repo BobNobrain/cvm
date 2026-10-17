@@ -6,41 +6,31 @@
 
 int main() {
     ERR_DECL
-    FILE *input = fopen("./tests/lambda/1.lmb", "r"); // stdin;
+    FILE *input = fopen("./tests/lambda/2.lmb", "r"); // stdin;
 
     Arena *arena = arena_new(65536);
     arena_set_max_regions(arena, 8); // 512 KiB memory limit
+
+    LangConfig language = ct_langconfig_create();
+
+    Compiler c;
+    ct_compiler_init(&c, language, ct_grammar_lmb_file, arena);
 
     StringBuilder *text_builder = strb_new(arena, 16384);
     err = strb_read_from_stream(text_builder, input);
     if (ERR_ISSET) {
         printf("Failed to read the input\n");
+        arena_destroy(arena);
         return EXIT_FAILURE;
     }
 
     String program_text = strb_render(text_builder);
 
-    LangConfig language = ct_langconfig_create();
-    Parser *p = ct_parser_new(arena);
-    String config_err = ct_parser_configure(p, language);
-    if (!str_is_empty(config_err)) {
-        printf("bad language config: " STR_FMT "\n", STR_FMT_VAL(config_err));
-        return EXIT_FAILURE;
-    }
-
-    printf("\n\n===============================\n");
-    ct_parser_parse(p, program_text, ct_grammar_lmb_file);
-
-    if (p->diagnostics.size > 0) {
-        printf("\nparse failed: \n");
-        for (size_t i = 0; i < p->diagnostics.size; i++) {
-            ct_diagnostic_print(p->diagnostics.content[i], program_text, p->arena);
-        }
-
-        arena_destroy(arena);
-        return EXIT_FAILURE;
-    }
+    ct_compiler_compile(&c, program_text);
+    ct_compiler_print_diagnostics(&c);
 
     arena_destroy(arena);
+
+    if (ct_compiler_has_errors(&c)) { return EXIT_FAILURE; }
     return EXIT_SUCCESS;
 }

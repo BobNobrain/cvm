@@ -10,9 +10,9 @@ typedef struct Tokenizer {
     String source;
 } Tokenizer;
 
-extern void ct_tokenizer_init(Tokenizer *t, Arena *arena, LangConfig config);
+extern void ct_tokenizer_init(Tokenizer *t, Compiler *c);
 extern void ct_tokenizer_run(Tokenizer *t, String source, DiagnosticArray *errors);
-extern void ct_tokenizer_print(Tokenizer *t);
+extern void ct_tokenslice_print(TokenSlice tokens);
 
 extern void ct_astnode_set_range_span_children(ASTNode *node);
 
@@ -33,5 +33,8 @@ extern LmbProgramType* _ct_type_get_primitive(PrimitiveType type);
 extern LmbProgramType* _ct_type_get_io();
 extern LmbProgramType* _ct_type_get_invalid();
 extern bool _ct_types_are_equal(LmbProgramType *t1, LmbProgramType *t2);
+
+extern BinopType _ct_find_binop_type(OperatorVariant variant, PrimitiveType operand_type);
+extern UnopType _ct_find_unop_type(OperatorVariant variant, PrimitiveType operand_type, PrimitiveType result_type);
 
 #endif

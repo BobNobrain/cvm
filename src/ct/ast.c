@@ -6,8 +6,8 @@
 #include "util.h"
 #include "ct_int.h"
 
-ASTNode* ct_astnode_new(Parser *parser, ASTNodeType type) {
-    ASTNode *new_node = arena_alloc(parser->arena, sizeof(*new_node));
+ASTNode* ct_astnode_new(Arena *arena, ASTNodeType type) {
+    ASTNode *new_node = arena_alloc(arena, sizeof(*new_node));
 
     *new_node = (ASTNode) { 0 };
     new_node->type = type;
@@ -16,13 +16,13 @@ ASTNode* ct_astnode_new(Parser *parser, ASTNodeType type) {
 }
 
 ASTNode* ct_astnode_new_error(Parser *parser, String msg) {
-    ASTNode *e = ct_astnode_new(parser, ASTNodeType_SYNTAX_ERROR);
+    ASTNode *e = ct_astnode_new(parser->arena, ASTNodeType_SYNTAX_ERROR);
     e->data.error = msg;
     e->range = ct_parser_current_range(parser);
     return e;
 }
 ASTNode* ct_astnode_new_error_ranged(Parser *parser, String msg, DocumentRange range) {
-    ASTNode *e = ct_astnode_new(parser, ASTNodeType_SYNTAX_ERROR);
+    ASTNode *e = ct_astnode_new(parser->arena, ASTNodeType_SYNTAX_ERROR);
     e->data.error = msg;
     e->range = range;
     return e;
@@ -110,7 +110,7 @@ void ct_astnode_print(ASTNode *node, size_t indent) {
         printf("BINOP " STR_FMT, STR_FMT_VAL(node->base->data.op));
         break;
     case ASTNodeType_UNOP:
-        printf("UNOP " STR_FMT, STR_FMT_VAL(node->base->data.op));
+        printf("UNOP " STR_FMT, STR_FMT_VAL(node->data.unop.op));
         break;
     case ASTNodeType_FNCALL:
         printf("FNCALL");

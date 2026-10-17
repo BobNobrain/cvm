@@ -87,7 +87,7 @@ ASTNode* _ct_token_wrap_literal(Parser *p, Token *token) {
         return 0;
     }
 
-    ASTNode* lit = ct_astnode_new(p, lit_type);
+    ASTNode* lit = ct_astnode_new(p->arena, lit_type);
     lit->base = token;
     lit->range = token->range;
 
@@ -168,7 +168,7 @@ void _ct_collapse_expr_parts(ExprPartArray *parts_array, Parser *p) {
             if (!str_eq(part->data.op->data.op, decl.op)) { continue; }
 
             // found a match
-            ASTNode *opnode = ct_astnode_new(p, node_type);
+            ASTNode *opnode = ct_astnode_new(p->arena, node_type);
             opnode->base = part->data.op;
             ExprPart opnode_part = { .type = ExprPartType_SUBEXPR, .data.subexpr = opnode };
 
@@ -344,7 +344,7 @@ ASTNode* ct_grammar_operator_expr(Parser *p) {
     }
 
     // more than one subexpression – must be function application then
-    ASTNode* result = ct_astnode_new(p, ASTNodeType_FNCALL);
+    ASTNode* result = ct_astnode_new(p->arena, ASTNodeType_FNCALL);
 
     for (size_t i = 0; i < parts_array.size; i++) {
         ExprPart part = parts_array.content[i];
@@ -389,7 +389,7 @@ ASTNode* _ct_grammar_lambda_arg(Parser *p) {
         return ct_astnode_new_error(p, STR_CONST("expected an argument name"));
     }
 
-    ASTNode *arg = ct_astnode_new(p, ASTNodeType_LAMBDA_ARG);
+    ASTNode *arg = ct_astnode_new(p->arena, ASTNodeType_LAMBDA_ARG);
     arg->base = arg_name;
     arg->range = arg_name->range;
     arg->data.lambda_arg = (ASTLambdaArgData) {
@@ -433,7 +433,7 @@ ASTNode* ct_grammar_lambda(Parser *p) {
     Token *lambda_symbol = ct_parser_peek(p);
     REQUIRE_TOKEN(TokenType_LAMBDA, "expected a '\\'")
 
-    ASTNode *result = ct_astnode_new(p, ASTNodeType_LAMBDA);
+    ASTNode *result = ct_astnode_new(p->arena, ASTNodeType_LAMBDA);
     result->data.lambda = (ASTLambdaData) { 0 };
 
     Token *next = 0;

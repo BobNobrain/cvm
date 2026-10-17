@@ -10,11 +10,11 @@ ARRAY_METHODS_IMPL(ct_tokenarray, Token)
 SLICE_METHODS_IMPL(ct_tokenslice, Token)
 SLICE_ARRAY_METHODS_IMPL(ct_tokenarray, Token)
 
-void ct_tokenizer_init(Tokenizer *t, Arena *arena, LangConfig config) {
-    ct_tokenarray_init(&t->tokens, 128, arena);
-    t->config = config;
+void ct_tokenizer_init(Tokenizer *t, Compiler *c) {
+    ct_tokenarray_init(&t->tokens, 128, c->arena);
+    t->config = c->config;
     t->cursor = ct_document_pos_zero();
-    t->source = STR_EMPTY;
+    t->source = c->source;
 }
 
 void ct_tokenizer_push_token(Tokenizer *t, Token token) {
@@ -418,89 +418,56 @@ void ct_tokenizer_run(Tokenizer *t, String source, DiagnosticArray *errors) {
     }
 }
 
-void ct_token_to_string(Token token, StringBuilder *sb) {
-    const size_t buffer_size = 128;
-    char buffer[buffer_size];
-
+void _ct_token_print(Token token) {
     switch (token.type) {
-    case TokenType_IDENT:
-        strb_appendc(sb, "<ident:");
-        strb_append(sb, token.data.ident);
-        strb_appendc(sb, "> ");
-        break;
-    case TokenType_INT_LITERAL:
-        snprintf(buffer, buffer_size, "<int:%d> ", token.data.intl);
-        strb_appendc(sb, buffer);
-        break;
-    case TokenType_FLOAT_LITERAL:
-        snprintf(buffer, buffer_size, "<float:%f> ", token.data.floatl);
-        strb_appendc(sb, buffer);
-        break;
     case TokenType_BOOL_LITERAL:
         if (token.data.booll) {
-            strb_appendc(sb, "<true> ");
+            printf("<true> ");
         } else {
-            strb_appendc(sb, "<false> ");
+            printf("<false> ");
         }
-        break;
-    case TokenType_OPERATOR:
-        snprintf(buffer, buffer_size, "<operator:" STR_FMT "> ", STR_FMT_VAL(token.data.op));
-        strb_appendc(sb, buffer);
-        break;
-    case TokenType_OPEN_PAREN:
-        strb_appendc(sb, "( ");
-        break;
-    case TokenType_CLOSE_PAREN:
-        strb_appendc(sb, ") ");
-        break;
-
-    case TokenType_NEWLINE:
-        strb_appendc(sb, "<\\n>\n");
-        break;
-
-    case TokenType_LAMBDA:
-        strb_appendc(sb, "\\ ");
-        break;
-
-    case TokenType_DOT:
-        strb_appendc(sb, ". ");
-        break;
-
-    case TokenType_COLON:
-        strb_appendc(sb, ": ");
-        break;
-
-    case TokenType_ASSIGNMENT:
-        strb_appendc(sb, "= ");
-        break;
+    break;
 
     case TokenType_KEYWORD:
         switch (token.data.keyword) {
-            case Keyword_LET: strb_appendc(sb, "LET "); break;
-            case Keyword_IF: strb_appendc(sb, "IF "); break;
-            case Keyword_ELSE: strb_appendc(sb, "ELSE "); break;
-            case Keyword_ENTRY: strb_appendc(sb, "ENTRY "); break;
-            default: strb_appendc(sb, "<unknown kw> "); break;
+            case Keyword_LET:   printf("LET ");          break;
+            case Keyword_IF:    printf("IF ");           break;
+            case Keyword_ELSE:  printf("ELSE ");         break;
+            case Keyword_ENTRY: printf("ENTRY ");        break;
+            default:            printf("<unknown kw> "); break;
         }
-        break;
+    break;
 
-    case TokenType_INVALID:
-        strb_appendc(sb, "<?> ");
-        break;
+    case TokenType_IDENT:         printf("<ident:" STR_FMT "> ", STR_FMT_VAL(token.data.ident)); break;
+    case TokenType_INT_LITERAL:   printf("<int:%d> ", token.data.intl);                          break;
+    case TokenType_FLOAT_LITERAL: printf("<float:%f> ", token.data.floatl);                      break;
+    case TokenType_OPERATOR:      printf("<operator:" STR_FMT "> ", STR_FMT_VAL(token.data.op)); break;
 
-    default:
-        strb_appendc(sb, "?");
-        break;
+    case TokenType_OPEN_PAREN:      printf("( ");       break;
+    case TokenType_CLOSE_PAREN:     printf(") ");       break;
+    case TokenType_NEWLINE:         printf("<\\n>\n");  break;
+    case TokenType_LAMBDA:          printf("\\ ");      break;
+    case TokenType_DOT:             printf(". ");       break;
+    case TokenType_COLON:           printf(": ");       break;
+    case TokenType_ASSIGNMENT:      printf("= ");       break;
+
+    case TokenType_INVALID:         printf("<?> ");     break;
+    default:                        printf("?");        break;
     }
 }
 
-void ct_tokenizer_print(Tokenizer *t) {
-    StringBuilder *sb = strb_new(t->tokens.arena, 128);
-
-    for (size_t i = 0; i < t->tokens.size; i++) {
-        ct_token_to_string(t->tokens.content[i], sb);
+void ct_tokenslice_print(TokenSlice tokens) {
+    for (size_t i = 0; i < tokens.size; i++) {
+        _ct_token_print(tokens.content[i]);
     }
 
-    String result = strb_render(sb);
-    printf(STR_FMT "\n", STR_FMT_VAL(result));
+    printf("\n");
+}
+
+TokenSlice ct_run_tokenization(Compiler *c) {
+    Tokenizer t = { 0 };
+    ct_tokenizer_init(&t, c);
+    ct_tokenizer_run(&t, c->source, &c->diagnostics);
+    TokenSlice tokens = ct_tokenarray_seal(&t.tokens);
+    return tokens;
 }

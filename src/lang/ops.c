@@ -1,6 +1,9 @@
 #include "util.h"
 #include "lang_int.h"
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wformat-security"
+
 const char DEBUG_STR_BINOPS[] = \
     "==\0<>\0" \
     "+i\0*i\0-i\0/i\0%i\0" \
@@ -10,17 +13,23 @@ const char DEBUG_STR_BINOPS[] = \
     "&&\0||\0" \
 ;
 
-void lang_binop_to_string(BinopType t, StringBuilder *sw) {
+void lang_print_binop(BinopType t) {
     const size_t binop_str_len = 3;
     size_t offset = (size_t)t * binop_str_len * sizeof(char);
-    strb_appendc(sw, &DEBUG_STR_BINOPS[offset]);
+    printf(&DEBUG_STR_BINOPS[offset]);
 }
 
 
-const char DEBUG_STR_UNOPS[] = "!\0\0-i\0-f\0if\0ib\0fb\0";
+const char DEBUG_STR_UNOPS[] = "!\0\0-i\0-f\0if\0fi\0fb\0";
 
-void lang_unop_to_string(UnopType t, StringBuilder *sw) {
+void lang_print_unop(UnopType t) {
+    if (t >= UNOP_INVALID) {
+        printf("invalid");
+        return;
+    }
     const size_t unop_str_len = 3;
     size_t offset = (size_t)t * unop_str_len * sizeof(char);
-    strb_appendc(sw, &DEBUG_STR_UNOPS[offset]);
+    printf(&DEBUG_STR_UNOPS[offset]);
 }
+
+#pragma GCC diagnostic pop

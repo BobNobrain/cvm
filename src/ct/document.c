@@ -57,10 +57,12 @@ String ct_document_substring(String source, DocumentRange range) {
     return str_substring(source, range.start.caret, range.end.caret);
 }
 
-void ct_diagnostic_print(Diagnostic d, String source_doc, Arena *arena) {
-    String near = ct_document_substring(source_doc, d.location);
-    String escaped = str_replace_all(near, STR_CONST("\n"), STR_CONST("\\n"), arena);
+bool _ct_document_is_valid_range(DocumentRange range) {
+    if (range.start.column == 0 && range.end.column == 0) { return false; }
+    return true;
+}
 
+void ct_diagnostic_print(Diagnostic d, String source_doc, Arena *arena) {
     switch (d.severity) {
     case DiagnosticSeverity_ERROR: printf("[ERROR] "); break;
     case DiagnosticSeverity_WARN: printf("[WARN] "); break;
@@ -73,13 +75,22 @@ void ct_diagnostic_print(Diagnostic d, String source_doc, Arena *arena) {
     default: break;
     }
 
-    printf(
-        STR_FMT "\n      at %zu:%zu-%zu:%zu (near '" STR_FMT "')\n",
-        STR_FMT_VAL(d.message),
-        d.location.start.line,
-        d.location.start.column,
-        d.location.end.line,
-        d.location.end.column,
-        STR_FMT_VAL(escaped)
-    );
+    if (_ct_document_is_valid_range(d.location)) {
+        String near = ct_document_substring(source_doc, d.location);
+        String escaped = str_replace_all(near, STR_CONST("\n"), STR_CONST("\\n"), arena);
+
+        printf(
+            STR_FMT "\n      at %zu:%zu-%zu:%zu (near '" STR_FMT "')\n",
+            STR_FMT_VAL(d.message),
+            d.location.start.line,
+            d.location.start.column,
+            d.location.end.line,
+            d.location.end.column,
+            STR_FMT_VAL(escaped)
+        );
+
+        return;
+    }
+
+    printf(STR_FMT "\n", STR_FMT_VAL(d.message));
 }

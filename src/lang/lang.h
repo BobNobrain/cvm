@@ -20,20 +20,16 @@ typedef size_t MemPtr;
     X(PrimitiveType_I32, int32_t, i32) \
     X(PrimitiveType_F32, float, f32)
 
-#define ENUM_MEMBER(CONST_NAME, TYPE, FIELD_NAME) CONST_NAME,
 typedef enum PrimitiveType {
-    PRIMITIVE_LIST(ENUM_MEMBER)
+    PRIMITIVE_LIST(ENUM_MEMBERS)
 } PrimitiveType;
-#undef ENUM_MEMBER
 
-#define UNION_MEMBER(CONST_NAME, TYPE, FIELD_NAME) TYPE FIELD_NAME;
 typedef struct PrimitiveValue {
     PrimitiveType type;
     union {
-        PRIMITIVE_LIST(UNION_MEMBER)
+        PRIMITIVE_LIST(UNION_FIELDS)
     } data;
 } PrimitiveValue;
-#undef UNION_MEMBER
 
 extern size_t lang_primitive_sizeof(PrimitiveType type);
 
@@ -122,66 +118,43 @@ typedef enum UnopType {
 
     // coercion operators
     UNOP_ITOF,
-    UNOP_ITOB,
-    UNOP_FTOB,
+    UNOP_FTOI,
 
     UNOP_INVALID
 } UnopType;
 
-extern void lang_binop_to_string(BinopType t, StringBuilder *sw);
-extern void lang_unop_to_string(UnopType t, StringBuilder *sw);
+extern void lang_print_binop(BinopType t);
+extern void lang_print_unop(UnopType t);
 
 
 /** Bytecode instructions */
-typedef enum InstructionType {
-    I_HALT,
-    I_PUSH,
-    I_POP,
-    I_BINOP,
-    I_UNOP,
-    I_JMP,
-    I_JMPZ,
-    I_MEMR,
-    I_MEMW,
+#define INSTRUCTION_TYPE_LIST(X) \
+    X(I_HALT,   , )                     \
+    X(I_PUSH32, uint32_t,       push32) \
+    X(I_POP32,  , )                     \
+    X(I_BINOP,  BinopType,      binop)  \
+    X(I_UNOP,   UnopType,       unop)   \
+    X(I_JMP,    InstructionPtr, jmp)    \
+    X(I_JMPZ,   InstructionPtr, jmpz)   \
+    X(I_IOC1,   , )                     \
 
-    I_INVALID
+typedef enum InstructionType {
+    INSTRUCTION_TYPE_LIST(ENUM_MEMBERS)
+
+    I_INVALID,
 } InstructionType;
 
 typedef size_t InstructionPtr;
 
-typedef Value IPushData;
-typedef ValueType IPopData;
-typedef BinopType IBinopData;
-typedef UnopType IUnopData;
-typedef InstructionPtr IJmpData;
-typedef InstructionPtr IJmpzData;
-typedef MemPtr IMemRData;
-typedef MemPtr IMemWData;
-
 typedef struct {
-    InstructionType type;
     union {
-        IPushData push;
-        IPopData pop;
-        IBinopData binop;
-        IUnopData unop;
-        IJmpData jmp;
-        IJmpzData jmpz;
-        IMemRData memr;
-        IMemWData memw;
+        INSTRUCTION_TYPE_LIST(UNION_FIELDS)
     } data;
+    InstructionType type;
 } Instruction;
 
-extern Instruction lang_instr_make_push(Value v);
-extern Instruction lang_instr_make_pop(uint8_t count);
-extern Instruction lang_instr_make_binop(BinopType op);
-extern Instruction lang_instr_make_unop(UnopType op);
-extern Instruction lang_instr_make_jmp(InstructionPtr to);
-extern Instruction lang_instr_make_jmpz(InstructionPtr to);
-extern Instruction lang_instr_make_memr(MemPtr to);
-extern Instruction lang_instr_make_memw(MemPtr to);
 extern size_t lang_instr_get_size(InstructionType i);
-extern void lang_instr_to_string(Instruction instr, StringBuilder *sb);
+extern void lang_instr_print(Instruction instr);
 
 
 /** Bytecode program and related things */

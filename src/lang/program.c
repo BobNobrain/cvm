@@ -55,6 +55,8 @@ size_t lang_program_write_instr(ProgramWriter *w, Instruction next) {
 }
 
 void lang_program_finish(ProgramWriter *from, Program *into) {
+    if (from->length == 0) { return; }
+
     into->length = from->length;
     into->code = realloc_or_die(from->code, from->length);
 
@@ -66,12 +68,8 @@ void lang_program_finish(ProgramWriter *from, Program *into) {
 void lang_program_print(Program p) {
     InstructionPtr ptr = 0;
     Instruction instr;
-    const size_t buffer_size = 128;
-    char buffer[128];
 
-    StringBuilder *sw = strb_new(arena_TODO(), 64);
-    snprintf(buffer, buffer_size, "program(%zu):\n", p.length);
-    strb_appendc(sw, buffer);
+    printf("program(%zu):\n", p.length);
 
     while (ptr < p.length) {
         size_t ilen = lang_program_read_instr(p, ptr, &instr);
@@ -80,14 +78,12 @@ void lang_program_print(Program p) {
             return;
         }
 
-        snprintf(buffer, buffer_size, "%3zu ", ptr);
-        strb_appendc(sw, buffer);
-        lang_instr_to_string(instr, sw);
-        strb_appendc(sw, "\n");
+        printf("%3zu ", ptr);
+        lang_instr_print(instr);
+        printf("\n");
 
         ptr += ilen;
     }
 
-    String result = strb_render(sw);
-    printf(STR_FMT "\n", STR_FMT_VAL(result));
+    printf("\n");
 }

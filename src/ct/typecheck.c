@@ -90,7 +90,34 @@ void _ct_typechecker_set_node_type(Typechecker *typechecker, ASTNode *node, LmbP
     typechecker->n_types_assigned += 1;
     node->value_type = type;
 }
+ASTNode* _ct_typechecker_wrap_with_cast(ASTNode *inner, LmbProgramType *cast_result, Arena *arena) {
+    ASTNode *wrapper = ct_astnode_new(arena, ASTNodeType_UNOP);
+    wrapper->range = inner->range;
+    wrapper->data.unop = (OperatorDecl) { .variant = OperatorVariant_UNARY_CAST, .op = STR_CONST("(cast)") };
+    wrapper->value_type = cast_result;
+    ct_astnode_append_child(wrapper, inner);
+    wrapper->next_sibling = inner->next_sibling;
+    inner->next_sibling = 0;
+    return wrapper;
+}
+void _ct_typechecker_insert_binop_implicit_casts(ASTNode *binop_node, Typechecker *typechecker) {
+    LmbProgramType *cast_result = binop_node->value_type;
+    if (cast_result == 0 || cast_result->kind != LmbProgramTypeKind_PRIMITIVE) {
+        return;
+    }
 
+    ASTNode *left = binop_node->first_child;
+    ASTNode *right = binop_node->first_child->next_sibling;
+
+    if (left->value_type->data.primitive != cast_result->data.primitive) {
+        ASTNode *wrapper = _ct_typechecker_wrap_with_cast(left, cast_result, typechecker->arena);
+        binop_node->first_child = wrapper;
+    }
+    if (right->value_type->data.primitive != cast_result->data.primitive) {
+        ASTNode *wrapper = _ct_typechecker_wrap_with_cast(right, cast_result, typechecker->arena);
+        binop_node->first_child->next_sibling = wrapper;
+    }
+}
 
 void _ct_assign_types(ASTNode *node, TypecheckerCtx *ctx);
 
@@ -159,6 +186,7 @@ void _ct_assign_binop_type(ASTNode *node, TypecheckerCtx *ctx) {
         case OperatorVariant_BINARY_DIV:
         case OperatorVariant_BINARY_POWER:
             _ct_typechecker_set_node_type(ctx->typechecker, node, max_fitting);
+            _ct_typechecker_insert_binop_implicit_casts(node, ctx->typechecker);
             break;
 
         case OperatorVariant_BINARY_REM:
@@ -363,17 +391,38 @@ void _ct_assign_types(ASTNode *node, TypecheckerCtx *ctx) {
     }
 }
 
-void ct_parser_assign_types(Parser *p) {
+void _ct_typechecker_find_untyped(Typechecker *typechecker, ASTNode *node) {
+    if (ct_astnode_is_error(node)) { return; }
+    switch (node->type) {
+    case ASTNodeType_LMB_FILE: break;
+
+    default:
+        if (node->value_type == 0) {
+            _ct_typechecker_add_diagnostic(typechecker, (Diagnostic) {
+                .location = node->range,
+                .message = STR_CONST("failed to infer type"),
+                .severity = DiagnosticSeverity_ERROR,
+            });
+        }
+    break;
+    }
+
+    for (ASTNode *it = node->first_child; it != 0; it = it->next_sibling) {
+        _ct_typechecker_find_untyped(typechecker, it);
+    }
+}
+
+void ct_run_typecheck(Compiler *c, ASTNode *root) {
     TypecheckerCtx root_ctx = {
         .typechecker = 0,
         .table = { .parent = 0, .symbols = { 0 } },
     };
-    _ct_symarray_init(&root_ctx.table.symbols, 128, p->arena);
+    _ct_symarray_init(&root_ctx.table.symbols, 128, c->arena);
 
     Typechecker typechecker = {
-        .arena = p->arena,
+        .arena = c->arena,
         .root_table = &root_ctx.table,
-        .diagnostics = &p->diagnostics,
+        .diagnostics = &c->diagnostics,
         .n_types_assigned = 0,
     };
     root_ctx.typechecker = &typechecker;
@@ -381,8 +430,10 @@ void ct_parser_assign_types(Parser *p) {
     // TODO: better algorithm – build a dependency tree first
     do {
         typechecker.n_types_assigned = 0;
-        _ct_assign_types(p->root, &root_ctx);
+        _ct_assign_types(root, &root_ctx);
         // loop until cannot resolve anymore types
         printf("next type inference iteration: %zu new types assigned\n", typechecker.n_types_assigned);
     } while (typechecker.n_types_assigned > 0);
+
+    _ct_typechecker_find_untyped(&typechecker, root);
 }
